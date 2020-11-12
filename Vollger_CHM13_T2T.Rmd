@@ -1,0 +1,203 @@
+---
+title: "Vollger_CHM13_T2T"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+#isRStudio <- Sys.getenv("RSTUDIO") == "1"
+#if(isRStudio){
+#  setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
+#}
+source("plotutils.R")
+```
+
+
+# Duplicon figure
+```{r Duplicons}
+
+source("plotutils.R")
+#
+# data setup
+#
+sedef=SEDEF
+dup.genes = fread("tmp.dup.gene"); colnames(dup.genes)=c("duplicon","gene")
+
+#
+#
+#
+#
+dups = data.table(rbind(DM, DM_38) %>% 
+                    group_by(duplicon,Assembly) %>% 
+                    summarise(count=sum(end-start), anc= unique(ancestral_position), chr_band= unique(chr_band)) %>%
+                    mutate(diff=max(count)-min(count)) %>%
+                    ungroup()%>%arrange(desc(diff))
+); 
+
+dups=merge(dups, dup.genes, by="duplicon", all.x=T)
+dups$label = paste(dups$duplicon, paste0("(",paste0(str_trunc(dups$gene, 35),")")))
+dups=data.table(dups%>%arrange(desc(diff)))
+dups$label = factor(as.character(dups$label), levels = unique(as.character(dups$label)))
+
+#dups$label = paste(dups$duplicon, paste0("(", paste0(sub("NA","",dups$chr_band),")")) )
+
+
+
+n = 30*length(unique(dups$Assembly))
+p_duplicons = ggplot(data = dups[1:n], aes(y=label, weight=count/1000, fill=Assembly)) + 
+  geom_bar(position="dodge") +
+  scale_fill_manual(values=COLORS)+
+  xlab("Total duplicon content (kbp)") +
+  ylab("Duplicon (Gene:count,...)") +
+  scale_y_discrete(position = "right")+
+  scale_x_reverse(label=comma)+
+  labs(title="30 duplicons with largest change between\nT2T CHM13 and GRCh38") +
+  theme_cowplot()+theme(legend.position = "bottom", plot.title = element_text(hjust = 0.5)); 
+
+#
+#
+#
+#
+rm=RM[end-start>10000]
+
+sedef=SEDEF[chr %in% c(ACHRO, "chr2","chr9") | chr2 %in% c(ACHRO, "chr2","chr9")]
+highest_achro = sedef %>% 
+  mutate(xx=pmin(as.character(chr), as.character(chr2)), yy = pmax(as.character(chr), as.character(chr2))) %>%
+  group_by(xx,yy) %>% 
+  summarise(total=sum(alnB)) %>% 
+  arrange(-total) %>% 
+  head(35)
+#filter(total>1e6)
+names=unique(c(highest_achro$xx, highest_achro$yy));
+
+sedef_flat=sedef[chr %in% names & chr2 %in% names & !(chr %in% ACHRO & chr2 %in% ACHRO) & (chr %in% ACHRO | chr2 %in% ACHRO) & alnB>50000 & fracMatch>.95 & chr!=chr2]
+duplicons=DM_BED[chr %in% names]
+duplicons$hex = sapply(strsplit(duplicons$V9, ","), function(x) rgb(x[1], x[2], x[3], maxColorValue=255))
+
+enriched = ENRICHED[chr %in% names & end-start > 1000000]
+
+enriched_sds = rgntag(sedef_flat, enriched, "enriched"); enriched_sds=enriched_sds[enriched==TRUE]
+
+zoom_rgns  = data.table(enriched_sds %>% 
+  group_by(chr) %>% 
+  summarise(start=min(start), end=max(end)) %>% mutate(Mbp=(end-start)/10^6, name=paste0(chr,":",round(start/10^6),"-",round(end/10^6), " Mbp")) )
+
+rm.z = zoom(rm, zoom_rgns)
+sedef_flat.z = zoom(sedef_flat, zoom_rgns)
+duplicons.z = zoom(duplicons, zoom_rgns)
+x1 = toGRanges(sedef_flat.z[,c("zname","start","end")])
+x2 = toGRanges(sedef_flat.z[,c("zname2","start2","end2")])
+
+
+flat_duplicon=as.ggplot(expression(
+  kp<-plotKaryotype(genome=data.frame(chr=zoom_rgns$name, length=zoom_rgns$end-zoom_rgns$start)),
+  kpPlotLinks(kp, data = x1, data2 = x2,  border=NA, col=transparent("orange", 0.8), data.panel = "ideogram"),
+  kpAddCytobands(kp),
+  kpRect(kp, chr=duplicons.z$zname, x0 = duplicons.z$start, x1=duplicons.z$end, y0=0, y1=.75,  border=NA, col=duplicons.z$hex ),
+  kpRect(kp, chr=sedef_flat.z$zname, x0 = sedef_flat.z$start, x1=sedef_flat.z$end, y0=0, y1=1,  border=NA, col=NEWCOLOR, data.panel = "ideogram"),
+  kpRect(kp, chr=rm.z$zname, x0 = rm.z$start, x1=rm.z$end, y0=0, y1=1,  border=NA, col=transparent(OLDCOLOR,0.25), data.panel = "ideogram")
+));
+ggsave("acro_duplicons_flat.pdf", height = 10, width = 16, plot=flat_duplicon)
+
+#
+#
+#
+#
+
+ggsave("duplicons.pdf", plot=plot_grid(p_duplicons, flat_duplicon, labels=c("a","b")), width=13*1.5, height=6*1.5) 
+
+```
+
+
+
+
+
+
+# Figure 1
+```{r Figure1}
+source("plotutils.R")
+#
+# data setup
+#
+sedef=SEDEF
+inter= sedef[chr2!=chr]
+intra = sedef[chr==chr2 & start < start2]
+
+
+chrs = CHRS[1:length(CHRS)-1]
+intra$color = GRAY
+intra.new <- overlap_either(intra, NEW)
+intra$color[intra.new] = NEWCOLOR
+intra$color[intra.new & intra$fracMatch >= 0.95 & intra$alnB >= 10000] = "#ff0000"
+intra <- intra[order(-color)]
+#print(intra %>% group_by(color) %>% summarise(length(chr)))
+
+#
+# regions for genomic instablity
+#
+gi.new.df = intra[intra.new ]%>% filter( fracMatch >= 0.95 & alnB >=10000 & abs(start-start2) < 10e6 & abs(start-start2) > 50000 ) %>% dplyr::select(chr, start, end2)
+write.table(gi.new.df, file = "GenomicInstabilityRegions_new.bed", sep="\t", quote = F, row.names = F, col.names = F)
+gi.new = toGRanges(gi.new.df )
+
+gi.df = intra%>% filter( fracMatch >= 0.95 & alnB >=10000 & abs(start-start2) < 10e6 & abs(start-start2) > 50000 ) %>% dplyr::select(chr, start, end2)
+gi = toGRanges(gi.df)
+gi.old <- setdiff(reduce(gi), reduce(gi.new))
+
+#
+#
+# intra chromosomal
+#
+#
+Intra=as.ggplot(expression(
+  kp <- plotKaryotype(genome = GENOME, cytobands = CYTO, chromosomes = NOM),
+  kpPlotRegions(kp, data=reduce(gi.new), col=transparent("orange", 0.25), data.panel = "ideogram", r0=0.0, r1=1, border = NA),
+  kpPlotRegions(kp, data=gi.old, col=transparent("orange", 0.25), data.panel = "ideogram", r0=0, r1=1, border = NA),
+  
+  kpPlotLinks(kp, 
+              data=toGRanges(data.frame(chr=intra$chr,start=intra$start,intra$end)), data2=toGRanges(data.frame(chr=intra$chr2,start=intra$start2,intra$end2)), 
+              col=intra$color, border = NA)
+  #kpAddCytobands(kp)
+  #pAddBaseNumbers(kp)
+))
+
+#
+#
+# She et al plots
+#
+#
+multiple_sds = rbind(SEDEF, SEDEF_38, SEDEF_CELARA, fill=TRUE)#,celera)
+sheall = pairwise_plot(multiple_sds)
+sheinter = pairwise_plot(multiple_sds[chr!=chr2])
+sheintra = pairwise_plot(multiple_sds[chr==chr2])
+
+C1 = plot_grid(sheall$identity, sheall$length, labels = "C", nrow=2) + 
+  ggtitle("All SDs")+ theme(plot.title = element_text(hjust = 0.5));
+C2 = plot_grid(sheintra$identity, sheintra$length, nrow=2)+ 
+  ggtitle("Intrachromosomal SDs") + theme(plot.title = element_text(hjust = 0.5))
+C3 = plot_grid(sheinter$identity, sheinter$length, nrow=2) +
+  ggtitle("Interchromosomal SDs")+ theme(plot.title = element_text(hjust = 0.5))
+She = plot_grid(C1,C2,C3, ncol = 3)
+
+Cmain = plot_grid(sheall$identity, sheall$length+ theme(legend.position = "none"), labels = "C", nrow=1);  
+#legend(x = "bottom", fill = transparent(c(NEWCOLOR, OLDCOLOR),0.25), legend = c("SDs more than 0.5% diverged from GRCh38", "Density of all SDs")); Cmain
+
+
+#
+#
+# make the figure
+#
+#
+ideo = plot_grid(Intra, NA,  labels = c("a","b"), ncol=2); 
+
+p = plot_grid(ideo, She, nrow=2)
+f1 = plot_grid(ideo, Cmain, nrow=2)
+  
+ggsave("FigureS1.pdf", plot=p, height = 16, width = 16)
+ggsave("Figure1.pdf", plot=f1, height = 8, width = 12)
+ggsave("PairWise.pdf", plot=C1, height=8, width=8)
+ggsave("Intra.pdf", plot=Intra, height=6, width=10)
+```
+
+
+
+
+
