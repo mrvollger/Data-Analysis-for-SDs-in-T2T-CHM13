@@ -4,7 +4,7 @@ library(scales)
 library(RColorBrewer)
 #library(dplyr)
 library(grid)
-#library(gridBase)
+#library(gridBase) 
 library(gridExtra)
 library(data.table)
 library(gtable)
@@ -20,7 +20,8 @@ library(glue)
 library(viridis)
 library(colourvalues)
 library(stringr)
-library(TxDb.Hsapiens.UCSC.hg38.knownGene)
+#library(TxDb.Hsapiens.UCSC.hg38.knownGene)
+# BiocManager::install("HelloRanges")
 library(HelloRanges)
 library(ggplotify)
 library(readxl)
@@ -28,6 +29,9 @@ library(circlize)
 #install.packages('scatterpie')
 library(scatterpie)
 library(maps)
+library(magick)
+library(zoo)
+setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
 #suppressPackageStartupMessages(library("argparse"))
 #library(argparse)
 CHRS <<- c(paste0("chr",seq(1,22)),"chrX", "chrY", "chrM", "chrMT")
@@ -42,7 +46,8 @@ OLDCOLOR = GRAY
 COLORS <<- c(`T2T CHM13`=NEWCOLOR, GRCh37=BLUE, GRCh38=GRAY, `Celera WGSA`="#ede682", `HG00733 pat`="#96bb7c",`HG00733 mat`="#ade498", `WGAC`="#000000")
 V="chm13.draft_v1.0_plus38Y"
 ACHRO <<- paste0("chr",c(13,14,15,21,22))
-
+FAI <<- fread(glue("../assemblies/{V}.fasta.fai"),col.names = c("chr","chrlen","x","y","z"))
+FAI$chr = factor(FAI$chr, levels =  c(CHRS, unique(FAI$chr[which(!FAI$chr %in% CHRS)]) ) , ordered = TRUE)
 
 readbed = function(f, tag, rm=F, chrfilt=FALSE){
   df = fread(glue(f)); df
@@ -72,18 +77,6 @@ grtodf = function(gr){
 }
 
 
-FAI <<- fread(glue("../assemblies/{V}.fasta.fai"),col.names = c("chr","chrlen","x","y","z"))
-FAI$chr = factor(FAI$chr, levels =  c(CHRS, unique(FAI$chr[which(!FAI$chr %in% CHRS)]) ) , ordered = TRUE)
-FAI = FAI[order(chr)]
-CENS=readbed(glue("../Assembly_analysis/SEDEF/{V}.cen.bed"), "Centromere")
-CENS$gieStain = "gpos100"#"gvar" #acen" , "gneg"
-CYTO.df = data.table(FAI$chr, 0, FAI$chrlen,gieStain="geng")
-CYTO2.df=CYTO.df
-CYTO2.df$gieStain[CYTO.df$V1 %in% ACHRO ] = "gpos75"#"stalk"
-GENOME=toGRanges(CYTO.df) 
-CYTO = c(GENOME,toGRanges(CENS))
-CYTO2 = c(toGRanges(CYTO2.df),toGRanges(CENS))
-
 
 #
 # util funcations
@@ -92,8 +85,8 @@ add_genes=function(df){
   x = do_bedtools_intersect(toGRanges(df[,1:4]), toGRanges(GENES[,1:4]), loj = T); nrow(df)
 }
 
-rgntag = function(q,r, tag, minoverlap=0, mincov=0.5, reduce=FALSE){
-  if(reduce){
+rgntag = function(q,r, tag, minoverlap=0, mincov=0.5, rreduce=FALSE){
+  if(rreduce){
     q = data.table(data.frame(reduce(toGRanges(q))))
     colnames(q)[1:3]=c("chr","start","end")
     q$chr = factor(q$chr, levels =  c(CHRS, unique(q$chr[which(!q$chr %in% CHRS)]) ) , ordered = TRUE)
@@ -107,9 +100,9 @@ rgntag = function(q,r, tag, minoverlap=0, mincov=0.5, reduce=FALSE){
   q
 }
 
-overlaps = function(q,r, minoverlap=0, mincov=0.0, reduce=FALSE){
+overlaps = function(q,r, minoverlap=0, mincov=0.0, rreduce=FALSE){
   colnames(q)[1:3]=c("chr","start","end")
-  if(reduce){
+  if(rreduce){
     q = data.table(data.frame(reduce(toGRanges(q))))
     q$chr = factor(q$chr, levels =  c(CHRS, unique(q$chr[which(!q$chr %in% CHRS)]) ) , ordered = TRUE)
   }
@@ -117,10 +110,10 @@ overlaps = function(q,r, minoverlap=0, mincov=0.0, reduce=FALSE){
   overlaps = (c$fraction > mincov) & (c$covered > minoverlap)
   return(overlaps)
 }
-overlap_either= function(q,r, minoverlap=250, mincov=0.25, reduce=FALSE){
+overlap_either= function(q,r, minoverlap=250, mincov=0.25, rreduce=FALSE){
   #q=sedef; r=NEW
-  o1 = overlaps(q[,c("chr","start","end")], r, minoverlap=minoverlap, mincov=mincov, reduce=FALSE)
-  o2 = overlaps(q[,c("chr2", "start2","end2")],r, minoverlap=minoverlap, mincov=mincov, reduce=FALSE)
+  o1 = overlaps(q[,c("chr","start","end")], r, minoverlap=minoverlap, mincov=mincov, rreduce=FALSE)
+  o2 = overlaps(q[,c("chr2", "start2","end2")],r, minoverlap=minoverlap, mincov=mincov, rreduce=FALSE)
   return(o1 | o2)
 }
       
@@ -154,7 +147,6 @@ gg_color_hue <- function(n) {
   hues = seq(15, 375, length = n + 1)
   hcl(h = hues, l = 65, c = 100)[1:n]
 }
-
 
 
 dupmasker_pal =function(){
@@ -193,7 +185,7 @@ pairwise_plot = function(df, facet=FALSE, inter=TRUE){
   p1 = ggplot(data = df) + 
     geom_histogram(aes(100*fracMatch, weight=alnB/1e6, fill=Assembly), 
                    alpha=0.9, color="black", breaks=seq(89.5,100.5, 0.5), position="dodge", closed = "left") +
-    theme_classic() +
+    theme_cowplot() +
     scale_y_continuous(labels = comma)+
     scale_x_continuous(breaks=seq(90,100, 0.5), labels=c(90,"",91,"",92,"",93,"",94,"",95,"",96,"",97,"",98,"",99,"",100)) +
     ylab("Sum of aligned bases (Mbp)") + xlab("% identity of pairwise alignments") + theme(legend.position = "none") +
@@ -209,7 +201,7 @@ pairwise_plot = function(df, facet=FALSE, inter=TRUE){
     ylab("Sum of aligned bases (Mbp)") + xlab("Length of pairwise alignments") +
     scale_y_continuous(labels = comma) +
     scale_x_log10(labels = comma) + annotation_logticks(sides="b") +
-    theme_classic() + scale_fill_manual(values=COLORS)+ theme(legend.position = "bottom") 
+    theme_cowplot() + scale_fill_manual(values=COLORS)+ theme(legend.position = "none") 
   
   if(facet){
     p1 = p1 + facet_wrap(chr ~ ., ncol=3)
@@ -241,8 +233,9 @@ make_windows = function(fai, window){
 zoom = function(df, lift){
   df$mod = NA
   df$zname=NA
-  for(x in lift$chr){
-    row=lift[chr==x]
+  #for(x in lift$chr){
+  for(i in 1:nrow(lift)){
+    row=lift[i,]
     cond = overlaps(df,row)
     df$mod[cond]=row$start
     df$zname[cond] = row$name
@@ -269,31 +262,4 @@ zoom = function(df, lift){
 }
 
 
-#
-# reading in data data frames
-#
-synt=readbed(glue("../Assembly_analysis/snyteny/{V}.snyteny_1Mbp.bed"), "synt")
-NEW=grtodf(setdiff(reduce(GENOME),toGRanges(synt)))
-NEW=NEW[!NEW$chr %in% c("chrY", "chrMT","chrM", NA)]
-
-GENES=readbed(glue("../Assembly_analysis/Liftoff/{V}.orf_only.bed"), "GENES")
-RM = readbed("../Assembly_analysis/Masked/{V}_repeatmasker.out.bed", "T2T CHM13", rm=T)
-SAT = RM[RM$type == "Satellite"]
-
-
-DM_BED = readbed("../Assembly_analysis/Masked/{V}_dupmasker_colors.bed", "T2T CHM13")
-DM = readbed("../Assembly_analysis/Masked/{V}.duplicons.bed", "T2T CHM13")
-DM_38 = readbed("../Assembly_analysis/Masked/hg38.no_alt.duplicons.bed", "GRCh38")
-DM_37 = readbed("../Assembly_analysis/Masked/hg19.no_alt.duplicons.bed", "GRCh37")
-
-SEDEF = readbed("../Assembly_analysis/SEDEF/{V}.SDs.bed", "T2T CHM13")
-SEDEF = rgntag(SEDEF, DM, "Duplicon")
-LOW = readbed("../Assembly_analysis/SEDEF/{V}.SDs.lowid.bed", "T2T CHM13")
-
-ENRICHED = readbed("../Assembly_analysis/SEDEF/{V}.sedef.enriched.bed", "highsd")[,1:4]
-
-
-SEDEF_38 = readbed("../Assembly_analysis/SEDEF/hg38.chr_only.SDs.bed", "GRCh38", chrfilt=TRUE)
-SEDEF_37 = readbed("../Assembly_analysis/SEDEF/hg19.no_alt.SDs.bed", "GRCh37")
-SEDEF_CELARA = readbed("../Assembly_analysis/SEDEF/Celera_WGSA.SDs.bed", "Celera WGSA")
 
