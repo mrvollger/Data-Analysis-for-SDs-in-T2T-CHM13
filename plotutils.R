@@ -31,7 +31,8 @@ library(scatterpie)
 library(maps)
 library(magick)
 library(zoo)
-setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
+library(ggforce)
+#setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
 #suppressPackageStartupMessages(library("argparse"))
 #library(argparse)
 CHRS <<- c(paste0("chr",seq(1,22)),"chrX", "chrY", "chrM", "chrMT")
@@ -87,7 +88,7 @@ add_genes=function(df){
 
 rgntag = function(q,r, tag, minoverlap=0, mincov=0.5, rreduce=FALSE){
   if(rreduce){
-    q = data.table(data.frame(reduce(toGRanges(q))))
+    q = data.table(data.frame(GenomicRanges::reduce(toGRanges(q))))
     colnames(q)[1:3]=c("chr","start","end")
     q$chr = factor(q$chr, levels =  c(CHRS, unique(q$chr[which(!q$chr %in% CHRS)]) ) , ordered = TRUE)
   }
@@ -103,7 +104,7 @@ rgntag = function(q,r, tag, minoverlap=0, mincov=0.5, rreduce=FALSE){
 overlaps = function(q,r, minoverlap=0, mincov=0.0, rreduce=FALSE){
   colnames(q)[1:3]=c("chr","start","end")
   if(rreduce){
-    q = data.table(data.frame(reduce(toGRanges(q))))
+    q = data.table(data.frame(GenomicRanges::reduce(toGRanges(q))))
     q$chr = factor(q$chr, levels =  c(CHRS, unique(q$chr[which(!q$chr %in% CHRS)]) ) , ordered = TRUE)
   }
   c = do_bedtools_coverage(toGRanges(q[,1:3]), toGRanges(r[,1:3]))

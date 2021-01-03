@@ -1,6 +1,6 @@
 #!/usr/bin/env Rscript
-setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
-#source("plotutils.R")
+#setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
+source("plotutils.R")
 library(ggridges)
 
 peri = readbed("../random_stat_scripts/split_sds/sds.peri.dedup.bed", "pericentromeric")
@@ -30,13 +30,12 @@ ggplot(data=df) +
 
 
 p1 = ggplot(data=df)+
-  scale_x_continuous(trans = "log10", labels = comma) +
   geom_density_ridges(aes(max_len, y=Assembly, fill=Assembly))+
   xlab("Segmental duplication length (bp)")+
   scale_fill_manual( values = colors) +
   theme_cowplot()+
-  theme(legend.position = "none")
-
+  theme(legend.position = "none") + 
+  scale_x_continuous(trans = "log10", labels = comma) #facet_zoom( x = max_len >= 5e4 & max_len <= 3e5, zoom.size=2, horizontal = F) ;p1
 
 p2 = ggplot(data=df)+
   geom_density_ridges(aes(fracMatch*100, y=Assembly, fill=Assembly))+
@@ -48,17 +47,22 @@ p2 = ggplot(data=df)+
 
 p = plot_grid(p1,p2)
 
-ggsave("sd_length_identity.pdf", plot = p, width = 16, height = 8)
+ggsave("supp/sd_length_identity.pdf", plot = p, width = 16, height = 8)
 p
 
+fileConn<-file("supp/sd_length_identity.txt")
+out = c()
 for(n in names){
   for(j in names){
     if(n!=j){
       result =  wilcox.test(df[Assembly==n]$max_len, df[Assembly==j]$max_len, alternative = "greater")
       if(result$p.value<0.5){
-        print(c(n,">",j))
-        print(result$p.value)
+        #print(c(n,">",j))
+        #print(result$p.value)
+        out = c(out, c(paste(n,"<",j), result$p.value))
         }  
       }
   }
 }
+writeLines(out, fileConn)
+close(fileConn)

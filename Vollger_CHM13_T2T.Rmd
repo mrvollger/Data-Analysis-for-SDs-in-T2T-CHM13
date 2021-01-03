@@ -30,13 +30,13 @@ dup.genes = fread("tmp.dup.gene"); colnames(dup.genes)=c("duplicon","gene")
 
 probes = readbed("../FES_stuff/acro_cn/probe.mappings.bed", "probes")
 probes$probe_id = gsub("::.*","",probes$probe_id)
-probes = probes[!probe_id %in% c("174552_ABC10_2_1_000044707300_L19", "174222_ABC10_2_1_000044616600_A12")]
+#probes = probes[!probe_id %in% c("174552_ABC10_2_1_000044707300_L19", "174222_ABC10_2_1_000044616600_A12")]
 pnames  = data.table(probe_id=unique(probes$probe_id))
 
-pnames$color = brewer.pal(length(pnames$probe_id), "Dark2")
+pnames$color = brewer.pal(length(pnames$probe_id), "Set3")
 probes = data.table(merge(probes, pnames, by ="probe_id", all.x=T))
 probes = data.table(probes %>% relocate(probe_id, .after=end))
-probes$label = as.numeric(as.factor(probes$probe_id))
+probes$label = gsub("^.*_", "", probes$probe_id) #as.numeric(as.factor(probes$probe_id))
 
 colors = pnames$color
 names(colors)=pnames$probe_id
@@ -45,7 +45,7 @@ names(colors)=pnames$probe_id
 #
 # define the acrocentric probes regions to zoom in on
 #
-enriched_sds=data.frame(reduce(toGRanges(probes)+5e6))
+enriched_sds=data.frame(GenomicRanges::reduce(toGRanges(probes)+5e6))
 colnames(enriched_sds)[1]="chr"
 enriched_sds[enriched_sds$start < 1,]$start = 1
 names=unique(enriched_sds$chr)
@@ -85,9 +85,14 @@ p_duplicons = ggplot(data = dups[1:n], aes(y=label, weight=count/1000, fill=Asse
   scale_x_continuous(label=comma)+
   labs(title="30 duplicons with largest change between\nT2T CHM13 and GRCh38") +
   theme_cowplot()+theme(legend.position = "top", 
-                        plot.title = element_text(hjust = 0.5),
+                        plot.title = element_text(hjust = 0.5)
                          #axis.text.x = element_text(angle = -65, vjust = 0, hjust=-0)
                         ); 
+
+ggsave("supp/dup_hist.pdf", height = 8, width = 12, plot=p_duplicons)
+
+p_duplicons
+
 
 
 #
@@ -99,20 +104,23 @@ has_both = findOverlapPairs(toGRanges(duplicons) ,toGRanges(oneprobe)+50000 )
 onedup = as.data.table(first(has_both))
 onedup$probe_id = second(has_both)$probe_id
 onedup$label = as.numeric(as.factor(onedup$probe_id))
+onedup$id_lab = paste(onedup$probe_id, ":", onedup$label)
 probe_l = ggplot(data=onedup)+
   geom_rect(aes(xmin=start, xmax=end, ymin=0, ymax=.25, fill=hex)) +
   #geom_segment(data= onedup %>%
   #               group_by(probe_id,label) %>% 
   #               summarise(start=min(start), end=max(end)),
   #             aes(x=start, xend=end, y=.55, yend=.55, color=probe_id), size=5, alpha=.85)+
-  facet_wrap(vars(label),ncol=nrow(oneprobe), scales="free_x") + 
+  facet_wrap(vars(id_lab), nrow=2, scales="free_x") + 
   scale_fill_identity()+
   scale_color_manual(values = colors)+
   theme_map()+theme(legend.position = "none",
                     panel.border = element_rect(colour = "black", fill=NA, size=1),
                     plot.title = element_text(hjust = 0.5))+
-  ylab("Probe ID, color, and duplicons")+
-  labs(title = "Location of FISH probes on novel acrocentric duplications")
+  ylab("Probe ID, color, and duplicons")
+
+probe_l
+ggsave("supp/dup_prob_l.pdf", height = 2, width = 20, plot=probe_l)
 
 #
 #
@@ -124,7 +132,6 @@ sedef_flat.z = zoom(sedef, zoom_rgns)
 duplicons.z = zoom(duplicons, zoom_rgns)
 probes.z = zoom(probes, zoom_rgns)
 Ns.z = zoom(NS, zoom_rgns)
-
 
 #
 #
@@ -150,11 +157,11 @@ flat_duplicon=as.ggplot(expression(
   kpRect(kp, chr=sedef_flat.z$zname, x0 = sedef_flat.z$start, x1=sedef_flat.z$end, y0=0, y1=1,  border=NA, col=NEWCOLOR, data.panel = "ideogram"),
   kpRect(kp, chr=rm.z$zname, x0 = rm.z$start, x1=rm.z$end, y0=0.05, y1=.95,  border=NA, col=transparent(OLDCOLOR,0.25), data.panel = "ideogram"),
   kpRect(kp, chr=Ns.z$zname, x0 = Ns.z$start, x1=Ns.z$end, y0=0.05, y1=.95,  border=NA, col="black", data.panel = "ideogram")
-));
+)); flat_duplicon
 
-probe_plot = plot_grid(probe_l, NULL, flat_duplicon, nrow=3, rel_heights = c(1,0,8), scale = c(0.7, 1, 1));
-probe_plot
-ggsave("acro_duplicons_flat.pdf", height = length(unique(duplicons.z$zname))*.8, width = 16, plot=probe_plot)
+probe_plot = plot_grid(flat_duplicon, probe_l, nrow=2, rel_heights = c(8,1)) #labs(title = "Location of FISH probes on novel acrocentric duplications")
+
+ggsave("supp/dup_ideo_flat.pdf", height = length(unique(duplicons.z$zname))*.8, width = 20, plot=probe_plot)
 
 
 
@@ -168,7 +175,7 @@ results$chr = results$variable
 results= results[!is.na(results$loc) & results$loc != ""]
 results$probe_id = results$CLONES
 results=results[probe_id %in% names(colors)]
-
+results$label = gsub("^.*_","", results$probe_id)
 # make pqcen long
 tmp = copy(results[loc == "pqcen"])
 tmp$loc = "pcen"
@@ -183,32 +190,41 @@ results=results[order(loc)]
 results
 
 probe_tbl= ggplot(data=results) + 
-  geom_bar(aes(x=loc, fill=probe_id))+
-  facet_grid(sample~chr, switch="y")+
-  scale_fill_manual(values = colors)+
+  geom_bar(aes(x=loc, fill=sample))+
+  facet_grid(label~chr, switch="y")+
+  scale_fill_brewer(palette = "Dark2")+
   theme_cowplot() + 
-  ylab("")+
+  ylab("")+xlab("")+
   labs(title="FISH probe signals from acrocentric duplications")+
-  theme(legend.position = "none", axis.text.y = element_blank(),
+  theme(legend.position = "top", #axis.text.y = element_blank(),
         plot.title = element_text(hjust = 0.5), 
-        axis.text = element_text(angle = 60, vjust = 0.5, hjust=1)
-        ) 
+        axis.text.x = element_text(angle = 60, vjust = 0.5, hjust=1)
+        )+
+  panel_border()
+ggsave("supp/dup_probe_tbl.pdf", height = 10, width = 16, plot = probe_tbl)
 
 #
 #
 #
 #
-g_fish_imgs = ggdraw() + draw_image("FISH/fosmid_png.png")
+g_fish_imgs = ggdraw() + draw_image("FISH/FES_FISHRESULTS_GM24385_LM new.png")
 
 
 top=plot_grid(p_duplicons, probe_plot, labels=c("a","b"), rel_widths = c(4,5))
 figure = plot_grid(top, g_fish_imgs, labels = c(NA,"c"), rel_heights = c(5,2), nrow=2)
 
-figure = plot_grid( plot_grid(flat_duplicon, g_fish_imgs, labels = c("a","b"), rel_widths = c(3,2)), p_duplicons,labels = c(NA,"c"), nrow=2)
-
+figure = plot_grid(flat_duplicon,
+                   plot_grid(
+                            g_fish_imgs,
+                            p_duplicons,
+                             labels = c("b","c"),
+                             rel_widths = c(2,3)
+                             ),
+                  labels = c("a",NA), nrow=2, rel_heights = c(1,1))
+           
 #figure
-ggsave("figures/duplicons.pdf", plot=figure , width=16, height=12) 
-ggsave("figures/duplicons.png", plot=figure , width=16, height=12, dpi = 300) 
+ggsave("figures/Duplicons.pdf", plot=figure , width=20, height=12) 
+ggsave("figures/Duplicons.png", plot=figure , width=16, height=12, dpi = 300) 
 
 
 ```
@@ -239,12 +255,12 @@ intra <- intra[order(-color)]
 # regions for genomic instablity
 #
 gi.new.df = intra[intra.new ]%>% filter( fracMatch >= 0.95 & alnB >=10000 & abs(start-start2) < 10e6 & abs(start-start2) > 50000 ) %>% dplyr::select(chr, start, end2)
-write.table(gi.new.df, file = "GenomicInstabilityRegions_new.bed", sep="\t", quote = F, row.names = F, col.names = F)
-gi.new = toGRanges(gi.new.df )
+write.table(gi.new.df, file = "supp/GenomicInstabilityRegions_new.bed", sep="\t", quote = F, row.names = F, col.names = F)
+gi.new <- toGRanges(gi.new.df )
 
 gi.df = intra%>% filter( fracMatch >= 0.95 & alnB >=10000 & abs(start-start2) < 10e6 & abs(start-start2) > 50000 ) %>% dplyr::select(chr, start, end2)
 gi = toGRanges(gi.df)
-gi.old <- setdiff(reduce(gi), reduce(gi.new))
+gi.old <- setdiff(GenomicRanges::reduce(gi), GenomicRanges::reduce(gi.new))
 
 #
 #
@@ -253,7 +269,7 @@ gi.old <- setdiff(reduce(gi), reduce(gi.new))
 #
 Intra=as.ggplot(expression(
   kp <- plotKaryotype(genome = GENOME, cytobands = CYTO, chromosomes = NOM),
-  kpPlotRegions(kp, data=reduce(gi.new), col=transparent("orange", 0.25), data.panel = "ideogram", r0=0.0, r1=1, border = NA),
+  kpPlotRegions(kp, data=GenomicRanges::reduce(gi.new), col=transparent("orange", 0.25), data.panel = "ideogram", r0=0.0, r1=1, border = NA),
   kpPlotRegions(kp, data=gi.old, col=transparent("orange", 0.25), data.panel = "ideogram", r0=0, r1=1, border = NA),
   kpPlotLinks(kp, 
               data=toGRanges(data.frame(chr=intra$chr,start=intra$start,intra$end)), data2=toGRanges(data.frame(chr=intra$chr2,start=intra$start2,intra$end2)), 
@@ -261,6 +277,8 @@ Intra=as.ggplot(expression(
   #kpAddCytobands(kp)
   #pAddBaseNumbers(kp)
 ))
+ggsave("supp/intra_sd_ideo.pdf", width = 12, height = 8, plot=Intra)
+
 ```
 
 ```{r, Figure1 inter, echo=FALSE}
@@ -287,14 +305,13 @@ Inter <- function(){
                      sedef.inter[,c("chr2","start2", "end2")],
                      border=NA, col=sedef.inter$color)
 };
-png("simple_inter.png", height = 6, width = 6, units="in", res=900, bg = "transparent")
+png("supp/inter_sd_circo.png", height = 6, width = 6, units="in", res=900, bg = "transparent")
 Inter()
 dev.off()
-pdf("simple_inter.pdf", height = 6, width = 6)
+pdf("supp/inter_sd_circo.pdf", height = 6, width = 6)
 Inter()
 dev.off()
 
-g_inter = ggdraw() + draw_image("simple_inter.png")
 ```
 
 
@@ -317,12 +334,14 @@ C2 = plot_grid(sheintra$identity, sheintra$length, nrow=2)+
 C3 = plot_grid(sheinter$identity, sheinter$length, nrow=2) +
   ggtitle("Interchromosomal SDs")+ theme(plot.title = element_text(hjust = 0.5))
 She = plot_grid(C1,C2,C3, ncol = 3)
+ggsave("supp/she_plots.pdf", width = 12, height = 8, plot=She)
+
 
 Cmain = plot_grid(sheall$identity, sheall$length+ theme(legend.position = "none"), labels = "C", nrow=1);  
 
-merged_sds = bind_rows(as.data.table(reduce(toGRanges(SEDEF))),
-                       as.data.table(reduce(toGRanges(SEDEF_38))),
-                       as.data.table(reduce(toGRanges(SEDEF_CELARA))),
+merged_sds = bind_rows(as.data.table(GenomicRanges::reduce(toGRanges(SEDEF))),
+                       as.data.table(GenomicRanges::reduce(toGRanges(SEDEF_38))),
+                       as.data.table(GenomicRanges::reduce(toGRanges(SEDEF_CELARA))),
                        .id="id")
 merged_sds[id==1]$id = "T2T CHM13"
 merged_sds[id==2]$id = "GRCh38"
@@ -344,6 +363,7 @@ by_chr = ggplot(data=merged_sds %>%
   scale_fill_manual(values=COLORS)+
   theme(legend.position = "none", axis.text.x = element_text(angle = -60, hjust = -.5, vjust=1.5))+
   ylab("Mbp of non-redundant SD") + xlab("");
+ggsave("supp/nonr_mbp_by_chr.pdf", width = 12, height = 8, plot=by_chr)
 
 by_all = ggplot(data=merged_sds %>%
                   group_by(Assembly) %>%
@@ -356,6 +376,9 @@ by_all = ggplot(data=merged_sds %>%
   scale_fill_manual(values=COLORS)+
   theme(legend.position = "none", axis.text.x = element_text(angle = -45, hjust = 0.1, vjust=0.5))+
   ylab("Mbp of non-redundant SD") + xlab(""); by_all
+by_all
+
+ggsave("supp/nonr_mbp.pdf", width = 12, height = 8, plot=by_all)
 
 p_mpb = plot_grid(by_all, by_chr,
                           labels = c("c","d"),
@@ -367,7 +390,6 @@ p_she = plot_grid(sheall$identity, sheall$length,
                           align = "h")
 
 sd_comparison = plot_grid(p_mpb, p_she); sd_comparison
-p_she
 #legend(x = "bottom", fill = transparent(c(NEWCOLOR, OLDCOLOR),0.25), legend = c("SDs more than 0.5% diverged from GRCh38", "Density of all SDs")); Cmain
 ```
 
@@ -378,6 +400,8 @@ p_she
 # make the figure
 #
 #
+g_inter = ggdraw() + draw_image("supp/inter_sd_circo.png")
+
 ideo = plot_grid(Intra, g_inter,  labels = c("a","b"), rel_widths = c(1,1), ncol=2); 
 #p = plot_grid(ideo, She, nrow=2)
 f1 = plot_grid(ideo, sd_comparison, nrow=2, rel_heights = c(2,1))

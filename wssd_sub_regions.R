@@ -5,9 +5,9 @@ source("plotutils.R")
 
 colors = c(Polymorphic="gray", CHM13=NEWCOLOR, GRCh38=OLDCOLOR, Polymorphic="gray", Neither = "green")
 
-tmp1 = fread("../wssd/v1.0/combined_tables/wssd/SYNTENY_EXP_SD_wssd_GMM.bed")
+tmp1 = fread("../wssd/v1.0/combined_tables/new_genotypes/wssd/SYNTENY_EXP_SD_wssd_GMM.bed")
 #tmp2 = fread("../wssd/v1.0/rdg_20kb/HIGH_CN/HIGH_CN.hgdp.combined.wssd.GMM.bed")
-tmp2 = fread("../wssd/v1.0/combined_tables/wssd/HIGH_CN_wssd_GMM.bed")
+tmp2 = fread("../wssd/v1.0/combined_tables/new_genotypes/wssd/HIGH_CN_wssd_GMM.bed")
 if(F){
   tmp=tmp1
   maxcn = 5
@@ -33,18 +33,45 @@ rdg = data.table(pivot_longer(tmp, cols=cols, names_to = "Samples", values_to = 
                    mutate(diff = case_when(abs(chm13_diff) <= abs(hg38_diff) ~ chm13_diff, abs(chm13_diff) > abs(hg38_diff) ~ hg38_diff), 
                           winner = case_when(abs(chm13_diff)==abs(hg38_diff) ~ "Polymorphic", abs(chm13_diff) < abs(hg38_diff) ~ "CHM13",  abs(chm13_diff) > abs(hg38_diff) ~ "GRCh38"))
                    )
-dim(rdg)
+# remove entries that overlap with Ns 
+has_Ns = queryHits(findOverlaps(toGRanges(rdg[,c("chr","start","end","name")]), toGRanges(NS)))
+rdg = rdg[-has_Ns,]
+
 rdg$color = colors[rdg$winner]
 n.sms = length(unique(rdg$Samples))
 
 
 # make a region df that defines winner for each region
 min_n_to_support = 5
+n_stds = 2
 rgn.df  = data.table(rdg %>% group_by(chr,start,end,name) %>%
-                        summarise( CHM13 = sum( abs(CN-chm13) <= 1 ), GRCh38=sum(abs(CN-hg38) <= 1)) %>%
-                        mutate( status = case_when( CHM13==0 & GRCh38==0 ~ "Neither", CHM13 >  GRCh38  ~ "CHM13", GRCh38 > CHM13 ~ "GRCh38", TRUE ~ "Polymorphic" )  ))
-                        #mutate( status = case_when(CHM13 >= min_n_to_support & GRCh38 >= min_n_to_support ~ "Polymorphic", CHM13 >= min_n_to_support ~ "CHM13", GRCh38 >=min_n_to_support ~ "GRCh38", TRUE ~ "Neither" )  ))
-rgn.df$region_color = colors[rgn.df$status]
+                        summarise( CHM13 = sum( abs(CN-chm13) <= 1 ), GRCh38=sum(abs(CN-hg38) <= 1), 
+                                   mean=mean(CN), median=median(CN), std = sd(CN),
+                                   chm13_cn =unique(chm13)[1], hg38_cn = unique(hg38)[1]) %>%
+                        mutate( status = case_when( 
+                                                    CHM13==0 & GRCh38==0 ~ "Neither", 
+                                                    CHM13 >  GRCh38  ~ "CHM13", 
+                                                    GRCh38 > CHM13 ~ "GRCh38",
+                                                    TRUE ~ "Polymorphic"),
+                                region_color = colors[status],
+                                status_std = case_when( 
+                                  abs(chm13_cn - median) > std * n_stds & abs(hg38_cn - median) > std * n_stds ~ "Neither", 
+                                  abs(chm13_cn - median) <= std * n_stds & abs(hg38_cn - median) <= std *n_stds ~ "Polymorphic", 
+                                  abs(chm13_cn - median) <= std * n_stds ~ "CHM13", 
+                                  abs(hg38_cn - median) <= std * n_stds ~ "GRCh38"
+                                  ),
+                                region_color_std = colors[status_std]
+                                )
+                     )
+                        
+
+# remove very high CN regions to remove the rDNA decoy copies
+to_remove_for_high_cn_and_rdna = rgn.df[median > 200]$name
+rgn.df = rgn.df[! name %in% to_remove_for_high_cn_and_rdna]
+rdg = rdg[! name %in% to_remove_for_high_cn_and_rdna]
+
+
+
 
 # merge wiht super pop info and location
 pop_location = data.table(super_pop = c("AMR","AFR","EA","SA","SIB","WEA","OCN"),
@@ -66,22 +93,29 @@ rdg$region_color = colors[rdg$status]
 #
 ecdf_rdg = pivot_longer(rdg, cols = which(colnames(rdg) %in% c("chm13_diff","hg38_diff")), names_to="ecdf_name", values_to = "ecdf_diff" )
 ecdf_cn_plot = ggplot(data=ecdf_rdg) + 
-  stat_ecdf(aes(x=abs(ecdf_diff), color=ecdf_name), size=3)+
-  #[annotation_logticks()+
-  #scale_x_continuous(trans="log10") +
+  stat_ecdf(aes(x=abs(ecdf_diff), color=ecdf_name), size=3) +
   scale_color_manual(values=c(chm13_diff=NEWCOLOR, hg38_diff=OLDCOLOR))+
-  coord_cartesian(xlim = c(0,30))+
+  #coord_cartesian(xlim = c(0,20))+
+  facet_zoom(x= abs(ecdf_diff) < 15)+
   xlab("Maximum difference between sample CN and reference CN allowed to be considered correct")+
   ylab("Cumulative fraction of correct CN representation")+
-  theme_cowplot()+theme(legend.position = "none")
+  theme_cowplot()+theme(legend.position = "none"); ecdf_cn_plot
+ggsave("supp/wssd_ecdf.pdf", width = 12, height = 8, plot=ecdf_cn_plot)
+
+
+#
+# This figure shows the CN of chm13 and hg38 vs the median for each loci
+#
+
+#ggplot(data = rgn.df %>%
+#         arrange(median) ) + 
+#  geom_link(aes(x=name, xend=name, y=chm13_cn, yend=median))
+
 
 
 #
 #
 #
-#
-
-
 p = ggplot(data=rdg%>% mutate(diff=case_when(diff>maxcn ~ maxcn, diff < -maxcn ~ -maxcn, TRUE ~ diff)))+
   geom_histogram(aes(x=diff, fill=winner), binwidth = 1, position=position_dodge(0.8)) + 
   xlab("Copy number difference (sample CN - reference CN)") + ylab("# of sample genotypes with observed CN difference") +
@@ -89,6 +123,7 @@ p = ggplot(data=rdg%>% mutate(diff=case_when(diff>maxcn ~ maxcn, diff < -maxcn ~
   scale_y_continuous(labels = comma) +
   scale_x_continuous(labels =  c(glue("-{maxcn}+"),(1-maxcn):(maxcn-1), glue("{maxcn}+") ), breaks = -maxcn:maxcn) +
   coord_cartesian(xlim=c(-maxcn,maxcn))+ theme_cowplot() + theme(legend.position = "none");p
+ggsave("supp/wssd_cn_diff_hist.pdf", width = 12, height = 8, plot=p)
 
 
 
@@ -104,19 +139,21 @@ kpPlotRegions(kp, data = toGRanges(topp[,c("chr","start","end")]), col=topp$colo
 kpPlotRegions(kp, data = toGRanges(botp[, c("chr","start","end")]), col=botp$color, ylim =n.sms, data.panel = 2, r0=.15),
 kpPlotRegions(kp, data = toGRanges(rgn.df[rgn.df$status!="Polymorphic",c("chr","start","end")]), col=rgn.df$region_color[rgn.df$status!="Polymorphic"], ylim = n.sms, data.panel = "ideogram", r0=0.2, r1=0.8, border = NA)
 )); ideo
-
-TSpecial <- ttheme_minimal(
-  colhead=list(fg_params=list(fontface=4L)),
-  rowhead=list(fg_params=list(fontface=3L)))
+ggsave("supp/wssd_ideo_exact_hist.pdf", width = 12, height = 8, plot=ideo)
 
 t1 = rdg %>% group_by(winner) %>% summarise(count=length(winner))
 t2 = rgn.df %>% group_by(status) %>% summarise(count = length(status))
 
-p3 = ggplot(data=t1) + geom_bar(aes(y=winner, x=count, fill=winner), stat = "identity") + 
-  geom_text(aes(label=count, y=winner, x=count), vjust=-1, angle=-90) +
-  scale_fill_manual(values=colors) + theme_cowplot() + xlab("# of sample genotypes with CN closer to CHM13 or GRCh38") + ylab("") + theme(legend.position = "none") ;p3
+p3 = ggplot(data=t1) + geom_bar(aes(x=winner, y=count, fill=winner), stat = "identity") + 
+  geom_text(aes(label=comma(count), x=winner, y=count), vjust=-1, angle=0) +
+  scale_fill_manual(values=colors) + theme_cowplot() + 
+  scale_y_continuous(label=comma)+
+  ylab("# of sample genotypes with CN closer to CHM13 or GRCh38") + xlab("") +
+  theme(legend.position = "none") ;p3
+ggsave("supp/wssd_sample_closer_hist.pdf", width = 8, height = 8, plot=p3)
+
 p4 = ggplot(data=t2) + geom_bar(aes(y=status, x=count, fill=status), stat = "identity") + 
-  geom_text(aes(label=count, y=status, x=count), vjust=-1, angle=-90) +
+  geom_text(aes(label=count, y=status, x=count), vjust=-1, angle=0) +
   scale_fill_manual(values=colors) + theme_cowplot() + xlab(glue("# of regions where more samples genotype exactly with either CHM13 or GRCh38")) + ylab("") + theme(legend.position = "none"); p4
 
 
@@ -143,18 +180,38 @@ map <- ggplot(world, aes(long, lat)) +
   geom_scatterpie_legend(zz_extra$radius, x=-160, y=-55, labeller = function(x){x*x/sizescale} ) +
   scale_fill_manual(values=colors) + theme_map() + ylab("Latitude") + xlab("longitude") + theme(legend.position = "top", legend.title = element_blank(), legend.justification = "center"); map
 
+ggsave("supp/wssd_map.pdf", width = 12, height = 8, plot=map)
+
 
 #
 # mbp histogram
 # 
-bp_hist = ggplot(data=rgn.df,aes(x=status, weight=end-start, fill=status))+
+bp_hist = ggplot(data=rgn.df,
+                 aes(x=status, weight=end-start, fill=status)
+                 )+
   geom_bar()+
   theme_cowplot()+
   scale_y_continuous(labels = comma) + 
   scale_fill_manual(values=colors) +
   geom_text(stat='count', aes(label=comma(..count..)), vjust=-1)+
-  xlab("") + ylab("# of bp where more samples genotype exactly") +
+  xlab("") + ylab("# of bp where more samples genotype exclusivly with one reference") +
   theme(legend.position = "none")
+bp_hist
+ggsave("supp/wssd_bp_hist.pdf", width = 8, height = 8, plot=bp_hist)
+
+bp_hist_std = ggplot(data=rgn.df,
+       aes(x=status_std, weight=end-start, fill=status_std) 
+       )+
+  geom_bar()+
+  theme_cowplot()+
+  scale_y_continuous(labels = comma) + 
+  scale_fill_manual(values=colors) +
+  geom_text(stat='count', aes(label=comma(..count..)), vjust=-1)+
+  xlab("") + ylab("# of bp where the reference CN is within the median +/- 2 sd") +
+  theme(legend.position = "none")
+bp_hist_std
+ggsave("supp/wssd_bp_hist_std.pdf", width = 8, height = 8, plot=bp_hist_std)
+
 
 #
 # Final figure

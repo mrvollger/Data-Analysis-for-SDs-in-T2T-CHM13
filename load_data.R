@@ -1,3 +1,4 @@
+#setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
 source("plotutils.R")
 
 if(F){
@@ -39,6 +40,11 @@ if(F){
   SEDEF_38 = readbed("../Assembly_analysis/SEDEF/hg38.chr_only.SDs.bed", "GRCh38", chrfilt=TRUE)
   SEDEF_37 = readbed("../Assembly_analysis/SEDEF/hg19.no_alt.SDs.bed", "GRCh37")
   SEDEF_CELARA = readbed("../Assembly_analysis/SEDEF/Celera_WGSA.SDs.bed", "Celera WGSA")
+  
+  NEW_GENES = read_excel(glue("../Assembly_analysis/Liftoff/{V}.liftoff.summary.xlsx"), sheet="NewCopiesLongestCDS")
+
+  METH_SD_GENES = fread("../t2t_globus_share/team-epigenetics/20200727_methylation/v1.0_methylation/SD_analysis/sd.transcripts.10kb_methAG.bed.gz")
+  
   
   save.image("~/Desktop/Rdata/plotutils.data")
 } else {
