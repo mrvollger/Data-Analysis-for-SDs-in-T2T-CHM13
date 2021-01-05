@@ -45,15 +45,17 @@ tri_bed <- function(f, s=.2, allowed_names=c()){
 # make the seq names more human readable
 
 clean_names <- function(list){
-  as.factor( gsub(" X 1", 
-                     "", 
-                     gsub("__", " X ", list)
-                  )
-              )
+  list = gsub(" X 1$", "", 
+       gsub("__", " X ", list)
+       )
+  list = gsub("CHM13.pri", "CHM13", list)
+  list = gsub("GRCh38chrOnly.pri", "GRCh38", list)
+  return(list)
 }
 
 clean_df <- function(df, allowed){
-  allowed = clean_names(allowed) 
+  allowed = factor(unique(c("CHM13", "GRCh38",clean_names(allowed))),
+                   levels = unique(c("CHM13", "GRCh38",clean_names(allowed))))
   for( x in c("r", "q", "chr", "Label")){
     if( x %in% names(df) ){
       # clean the names
@@ -76,20 +78,45 @@ BLUE = "#3282b8"
 NEWCOLOR = RED
 OLDCOLOR = GRAY 
 
-
+if(T){
+gene="TBC1D3_1"
+search_gene = "TBC1D3"
+simple_gene="TBC1D3 (1)"
+}
+if(F){
 gene="TBC1D3_2"
 search_gene = "TBC1D3"
-
-gene="SRGAP2B_D"
-search_gene = "SRGAP2(B|D)"
-
-gene="ARHGAP11"
-gene="EIF3C"
-gene="CHR1_QCEN"
+simple_gene="TBC1D3 (2)"
+}
+if(F){
+#gene="SRGAP2B_D"
+#search_gene = "SRGAP2(B|D)"
+}
+if(F){
 gene="SMN"
+search_gene=gene
+simple_gene=gene
+}
+if(F){
+gene = "CYP2D6"
+search_gene = "CYP2D"
+simple_gene = gene
+}
+if(F){
+gene="ARHGAP11"
 search_gene = gene
-
 simple_gene = gsub("\\|", ",",search_gene)
+}
+if(F){
+gene="EIF3C"
+search_gene="NPIP"
+simple_gene="16p11.2"
+}
+if(F){
+gene="CHR1_QCEN"
+search_gene="NOTCH2|SRGAP2"
+simple_gene="Chr1 qCen (NOTCH2, SRGAP2)"
+}
 
 #
 # load data, and make names human readable
@@ -134,6 +161,14 @@ df = merge(df, tmp, by="r")
 #
 all_genes$q = all_genes$chr
 all_genes$target  = grepl(gsub("_.*","", search_gene), all_genes$V4) 
+all_genes$arrow = "last"
+all_genes[V6=="-"]$arrow = "first"
+all_genes = all_genes[chr %in% unique(df$q)]
+all_genes$length = all_genes$end - all_genes$start
+# filter to only largest per, and then filter by size
+all_genes = all_genes[all_genes[, .I[which.max(length)], by=c("chr","V4","V6")]$V1]
+#all_genes = all_genes[length>1000]
+
 genes = all_genes[all_genes$target]
 #gene_rgn = genes[which.max(genes$end-genes$start)][1]
 if(F){
@@ -255,11 +290,12 @@ p = p1 +
   new_scale_fill() + new_scale_color() +
   
   # add in the gene data
-  geom_segment(data=all_genes %>% filter(chr %in% unique(df$q)), 
+  geom_segment(data=all_genes, 
            aes(x=start, xend=end,
                y=1 - (dup_offset-s*target)/2, yend=1 - (dup_offset-s*target)/2,
                color=target, group=chr),
-           size=1)+
+           arrow = arrow(length = unit(0.08, "npc"), ends = all_genes$arrow),
+           size=.5)+
   scale_color_manual(values = c(`FALSE`="black", `TRUE`="red")) +
   new_scale_color() + 
   
@@ -270,18 +306,19 @@ p = p1 +
   scale_fill_manual(values=dcolor )+
   
   # add figure astetics
-  ylab("Haplotype resolved assemblies") + 
+  ylab("")+#ylab("Haplotype resolved assemblies") + 
   xlab("Genomic position (bp)")+
   #scale_y_continuous( labels = levels(df$q), breaks=1:length(levels(df$q)) ) + 
-  scale_x_continuous(labels = comma)+
-  facet_wrap(vars(q), nrow=length(unique(df$q))) +
+  scale_x_continuous(labels = comma, expand = c(0,NA))+
+  facet_wrap(vars(q), strip.position = "left", ncol=1) +
   theme_cowplot() +
   theme(legend.position = "none",
         plot.title = element_text(hjust=0.5),
         axis.line.y = element_blank(), axis.ticks.y = element_blank(), axis.text.y = element_blank(), 
         strip.background = element_rect(colour=NA, fill=NA),
         panel.border = element_rect(color = transparent("gray", 0.5), fill = NA, size = .1),
-        plot.margin = unit(c(1,2,1,1), "cm")
+        plot.margin = unit(c(1,3,1,1), "cm"),
+        strip.text.y.left   = element_text(angle=0, hjust=0)
         ); p
 
 
@@ -333,6 +370,7 @@ if( ! dir.exists("minigraph_figures")){
 
 #figure=plot_grid(graph_figure, p, nrow=2, rel_heights = c(1, 1.5*length(unique(df$q)))); figure
 figure1=plot_grid(graph_figure, p, ncol=2, rel_widths = c(2,4), labels = "auto")
-figure = plot_grid(title, figure1, legend, nrow=3, rel_heights = c(.5,num_q_seqs,.5))
-adjust = 1
-ggsave(glue("minigraph_figures/{gene}.pdf"), height = adjust*1.25*num_q_seqs, width = adjust*20, plot = figure)
+figure = plot_grid(title, figure1, nrow=2, rel_heights = c(.5,max(num_q_seqs,8)))
+adjust = .8
+ggsave(glue("minigraph_figures/{gene}.pdf"), height = adjust*1.25*max(num_q_seqs,8), width = adjust*20, plot = figure)
+

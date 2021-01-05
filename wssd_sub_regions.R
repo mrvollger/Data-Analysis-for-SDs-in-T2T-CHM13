@@ -42,7 +42,7 @@ n.sms = length(unique(rdg$Samples))
 
 
 # make a region df that defines winner for each region
-min_n_to_support = 5
+min_n_to_support = 0
 n_stds = 2
 rgn.df  = data.table(rdg %>% group_by(chr,start,end,name) %>%
                         summarise( CHM13 = sum( abs(CN-chm13) <= 1 ), GRCh38=sum(abs(CN-hg38) <= 1), 
@@ -77,7 +77,8 @@ rdg = rdg[! name %in% to_remove_for_high_cn_and_rdna]
 pop_location = data.table(super_pop = c("AMR","AFR","EA","SA","SIB","WEA","OCN"),
                           lat  = c( 13, 7.7, 33, 10.3, 61, 52, 1),
                           long  = c(-88, 21,  110, 75.5, 95, 27, 130)
-); pop_location$lat = as.numeric(pop_location$lat); pop_location$long = as.numeric(pop_location$long)
+); 
+pop_location$lat = as.numeric(pop_location$lat); pop_location$long = as.numeric(pop_location$long)
 rdg$sample = rdg$Samples
 rdg=merge(rdg, popinfo, by="sample")
 rdg= data.table( rdg %>% merge(pop_location, by="super_pop") %>% group_by(super_pop)%>% mutate(n_super_pop = length(unique(sample)))) 
@@ -96,7 +97,7 @@ ecdf_cn_plot = ggplot(data=ecdf_rdg) +
   stat_ecdf(aes(x=abs(ecdf_diff), color=ecdf_name), size=3) +
   scale_color_manual(values=c(chm13_diff=NEWCOLOR, hg38_diff=OLDCOLOR))+
   #coord_cartesian(xlim = c(0,20))+
-  facet_zoom(x= abs(ecdf_diff) < 15)+
+  facet_zoom(x= abs(ecdf_diff) < 15, zoom.size = 3)+
   xlab("Maximum difference between sample CN and reference CN allowed to be considered correct")+
   ylab("Cumulative fraction of correct CN representation")+
   theme_cowplot()+theme(legend.position = "none"); ecdf_cn_plot
@@ -126,8 +127,9 @@ p = ggplot(data=rdg%>% mutate(diff=case_when(diff>maxcn ~ maxcn, diff < -maxcn ~
 ggsave("supp/wssd_cn_diff_hist.pdf", width = 12, height = 8, plot=p)
 
 
-
-
+#
+# wssd karyoplot
+#
 pp=plotDefaultPlotParams(plot.type = 2); 
 pp$plot.params$ideogramheight = 200
 ideo = as.ggplot(expression(
@@ -141,6 +143,10 @@ kpPlotRegions(kp, data = toGRanges(rgn.df[rgn.df$status!="Polymorphic",c("chr","
 )); ideo
 ggsave("supp/wssd_ideo_exact_hist.pdf", width = 12, height = 8, plot=ideo)
 
+
+#
+# winner plot
+#
 t1 = rdg %>% group_by(winner) %>% summarise(count=length(winner))
 t2 = rgn.df %>% group_by(status) %>% summarise(count = length(status))
 
@@ -194,7 +200,7 @@ bp_hist = ggplot(data=rgn.df,
   scale_y_continuous(labels = comma) + 
   scale_fill_manual(values=colors) +
   geom_text(stat='count', aes(label=comma(..count..)), vjust=-1)+
-  xlab("") + ylab("# of bp where more samples genotype exclusivly with one reference") +
+  xlab("") + ylab("# of bp where more samples genotype with one reference") +
   theme(legend.position = "none")
 bp_hist
 ggsave("supp/wssd_bp_hist.pdf", width = 8, height = 8, plot=bp_hist)
@@ -207,7 +213,7 @@ bp_hist_std = ggplot(data=rgn.df,
   scale_y_continuous(labels = comma) + 
   scale_fill_manual(values=colors) +
   geom_text(stat='count', aes(label=comma(..count..)), vjust=-1)+
-  xlab("") + ylab("# of bp where the reference CN is within the median +/- 2 sd") +
+  xlab("") + ylab(glue("# of bp where the reference is within the median CN +/- {n_stds} sd")) +
   theme(legend.position = "none")
 bp_hist_std
 ggsave("supp/wssd_bp_hist_std.pdf", width = 8, height = 8, plot=bp_hist_std)
@@ -224,10 +230,10 @@ fig_bot = plot_grid(bp_hist, ecdf_cn_plot, rel_widths = c(1,2), labels =c("c","d
 fig = plot_grid(fig_top, fig_bot, ncol=1,labels = c(NA,NA), rel_heights = c(4,3))
 
 # simplified figure
-fig = plot_grid(plot_grid(bp_hist,p, labels=c("a","b")), ecdf_cn_plot, ncol = 1, labels =c(NA,"c"))
+fig = plot_grid(plot_grid(bp_hist, bp_hist_std, labels=c("a","b")), ecdf_cn_plot, rel_heights = c(6,5), ncol = 1, labels =c(NA,"c"))
 
 
-scale=0.7
+scale=0.8
 ggsave(glue("figures/wssd_{pname}.pdf"), plot=fig, height = 16*scale, width = 16*scale)
 ggsave(glue("figures/wssd_{pname}.png"), plot=fig, height = 16*scale, width = 16*scale, dpi=300)
 fig

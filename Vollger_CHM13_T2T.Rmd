@@ -70,7 +70,7 @@ dups = data.table(rbind(DM, DM_38) %>%
                     ungroup()%>%arrange(desc(diff))); 
 
 dups=merge(dups, dup.genes, by="duplicon", all.x=T)
-dups$label = paste(dups$duplicon, paste0("(",paste0(str_trunc(dups$gene, 35),")")))
+dups$label = paste(dups$duplicon, paste0("(",paste0(str_trunc(dups$gene, 20),")")))
 dups=data.table(dups%>%arrange(desc(diff)))
 dups$label = factor(as.character(dups$label), levels = unique(as.character(dups$label)))
 
@@ -88,6 +88,7 @@ p_duplicons = ggplot(data = dups[1:n], aes(y=label, weight=count/1000, fill=Asse
                         plot.title = element_text(hjust = 0.5)
                          #axis.text.x = element_text(angle = -65, vjust = 0, hjust=-0)
                         ); 
+
 
 ggsave("supp/dup_hist.pdf", height = 8, width = 12, plot=p_duplicons)
 
@@ -157,7 +158,10 @@ flat_duplicon=as.ggplot(expression(
   kpRect(kp, chr=sedef_flat.z$zname, x0 = sedef_flat.z$start, x1=sedef_flat.z$end, y0=0, y1=1,  border=NA, col=NEWCOLOR, data.panel = "ideogram"),
   kpRect(kp, chr=rm.z$zname, x0 = rm.z$start, x1=rm.z$end, y0=0.05, y1=.95,  border=NA, col=transparent(OLDCOLOR,0.25), data.panel = "ideogram"),
   kpRect(kp, chr=Ns.z$zname, x0 = Ns.z$start, x1=Ns.z$end, y0=0.05, y1=.95,  border=NA, col="black", data.panel = "ideogram")
-)); flat_duplicon
+  )) +
+  ggtitle("Assembly SD predicted FISH locations for fosmid probes") + 
+  theme_map() + theme(plot.title = element_text(hjust=0.5, face = "bold") )
+flat_duplicon
 
 probe_plot = plot_grid(flat_duplicon, probe_l, nrow=2, rel_heights = c(8,1)) #labs(title = "Location of FISH probes on novel acrocentric duplications")
 
@@ -168,8 +172,8 @@ ggsave("supp/dup_ideo_flat.pdf", height = length(unique(duplicons.z$zname))*.8, 
 #
 # read in fes results
 #
-results = fread("../FES_stuff/acro_cn/results.csv")
-results = melt(results, id.vars =c("sample", "CLONES"))
+results = fread("../FES_stuff/acro_cn/results.2.csv")
+results = melt(results, id.vars =c("Sample", "CLONES"))
 results$loc = gsub("\\(het\\)", "", results$value)
 results$chr = results$variable
 results= results[!is.na(results$loc) & results$loc != ""]
@@ -189,10 +193,19 @@ results$loc = factor(results$loc, levels = loc_order)
 results=results[order(loc)]
 results
 
+samples = unique(results$Sample)
+myn=length(samples)
+tbl_colors = brewer.pal(myn, "Dark2")
+names(tbl_colors) = samples
+tbl_colors["CHM13"] = NEWCOLOR
+tbl_colors[c("Assembly SD","Assembly low ID")] = c("black","black")#c(transparent(NEWCOLOR), transparent(NEWCOLOR))
+tbl_colors 
+
 probe_tbl= ggplot(data=results) + 
-  geom_bar(aes(x=loc, fill=sample))+
+  geom_bar(aes(x=loc, fill=Sample))+
   facet_grid(label~chr, switch="y")+
-  scale_fill_brewer(palette = "Dark2")+
+  #scale_fill_brewer(palette = "Dark2")+
+  scale_fill_manual(values=tbl_colors)+
   theme_cowplot() + 
   ylab("")+xlab("")+
   labs(title="FISH probe signals from acrocentric duplications")+
@@ -207,7 +220,7 @@ ggsave("supp/dup_probe_tbl.pdf", height = 10, width = 16, plot = probe_tbl)
 #
 #
 #
-g_fish_imgs = ggdraw() + draw_image("FISH/FES_FISHRESULTS_GM24385_LM new.png")
+g_fish_imgs = ggdraw() + draw_image("FISH/FES_FISHRESULTS_GM24385_LM new.png") + theme_map() + ggtitle("\nFosmid probe FISH signals for CHM13") + theme(plot.title = element_text(hjust=0.5))
 
 
 top=plot_grid(p_duplicons, probe_plot, labels=c("a","b"), rel_widths = c(4,5))
@@ -223,8 +236,9 @@ figure = plot_grid(flat_duplicon,
                   labels = c("a",NA), nrow=2, rel_heights = c(1,1))
            
 #figure
-ggsave("figures/Duplicons.pdf", plot=figure , width=20, height=12) 
-ggsave("figures/Duplicons.png", plot=figure , width=16, height=12, dpi = 300) 
+scale = 1.5
+ggsave("figures/Duplicons.pdf", plot=figure , width=12*scale, height=10*scale) 
+ggsave("figures/Duplicons.png", plot=figure , width=12*scale, height=10*scale, dpi = 300) 
 
 
 ```
