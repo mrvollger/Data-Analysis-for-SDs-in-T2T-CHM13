@@ -1,8 +1,6 @@
 #!/usr/bin/env Rscript
 setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
-source("plotutils.R")
 if(! require("tidyverse")) install.packages("tidyverse")
-#library(tidyverse)
 if(! require("ggnewscale")) install.packages("ggnewscale")
 if(! require("ggrepel")) install.packages("ggrepel")
 if(! require("data.table")) install.packages("data.table")
@@ -10,6 +8,73 @@ if(! require("glue")) install.packages("glue")
 if(! require("RColorBrewer")) install.packages("RColorBrewer")
 if(! require("scales")) install.packages("scales")
 if(! require("cowplot")) install.packages("cowplot")
+CHRS <<- c(paste0("chr",seq(1,22)),"chrX", "chrY", "chrM", "chrMT")
+NOYM = CHRS[! CHRS %in% c("chrY","chrMT","chrM")]
+NOM = CHRS[! CHRS %in% c("chrMT","chrM")]
+
+GRAY = "#2F4F4F"	
+RED = "#af0404"
+BLUE = "#3282b8"
+NEWCOLOR = RED
+OLDCOLOR = GRAY 
+# change this if you want
+MAX_ROWS = 10 # the maximum number of rows to plot, though it always plots all the seqs the contribute to building the graph
+# CHANGE THIS !!!!!!!!!!!
+DATA_DIR = "../sd_regions_in_hifi_wga/pull_by_regions_snake_results/pull_sd_regions"
+DATA_DIR = "../orthology_analysis/TBC1D3/minigraph/pull_sd_regions"
+BANDAGE_PATH = "~/software/Bandage//Bandage.app/Contents/MacOS/"
+
+# READ HERE!!!!!!!!!!!!
+#
+# set up a gene name 
+#
+# gene = "region you name you used in pull_region"
+# search_gene = "gene\pattern to search for in the gene file"
+# simple_gene = "title for plot: variation in {simple_gene}"
+if(T){
+  gene="middle_TBC1D3_unique_sequence"
+  search_gene="TBC1D3"
+  simple_gene="between TBC1D3 site 1 and 2"
+}
+if(F){
+  gene="TBC1D3_1"
+  search_gene = "TBC1D3"
+  simple_gene="TBC1D3 (1)"
+}
+if(F){
+  gene="TBC1D3_2"
+  search_gene = "TBC1D3"
+  simple_gene="TBC1D3 (2)"
+}
+if(F){
+  #gene="SRGAP2B_D"
+  #search_gene = "SRGAP2(B|D)"
+}
+if(F){
+  gene="SMN"
+  search_gene=gene
+  simple_gene=gene
+}
+if(F){
+  gene = "CYP2D6"
+  search_gene = "CYP2D"
+  simple_gene = gene
+}
+if(F){
+  gene="ARHGAP11"
+  search_gene = gene
+  simple_gene = gsub("\\|", ",",search_gene)
+}
+if(F){
+  gene="EIF3C"
+  search_gene="NPIP"
+  simple_gene="16p11.2"
+}
+if(F){
+  gene="CHR1_QCEN"
+  search_gene="NOTCH2|SRGAP2"
+  simple_gene="Chr1 qCen (NOTCH2, SRGAP2)"
+}
 
 tri_bed <- function(f, s=.2, allowed_names=c()){
   #df = fread(glue("../sd_regions_in_hifi_wga/lpa/minimiro/temp_minimiro/{gene}_query.fasta.duplicons.extra")); df
@@ -78,55 +143,16 @@ BLUE = "#3282b8"
 NEWCOLOR = RED
 OLDCOLOR = GRAY 
 
-if(T){
-gene="TBC1D3_1"
-search_gene = "TBC1D3"
-simple_gene="TBC1D3 (1)"
-}
-if(F){
-gene="TBC1D3_2"
-search_gene = "TBC1D3"
-simple_gene="TBC1D3 (2)"
-}
-if(F){
-#gene="SRGAP2B_D"
-#search_gene = "SRGAP2(B|D)"
-}
-if(F){
-gene="SMN"
-search_gene=gene
-simple_gene=gene
-}
-if(F){
-gene = "CYP2D6"
-search_gene = "CYP2D"
-simple_gene = gene
-}
-if(F){
-gene="ARHGAP11"
-search_gene = gene
-simple_gene = gsub("\\|", ",",search_gene)
-}
-if(F){
-gene="EIF3C"
-search_gene="NPIP"
-simple_gene="16p11.2"
-}
-if(F){
-gene="CHR1_QCEN"
-search_gene="NOTCH2|SRGAP2"
-simple_gene="Chr1 qCen (NOTCH2, SRGAP2)"
-}
 
 #
 # load data, and make names human readable
 # 
-DF = fread(glue("../sd_regions_in_hifi_wga/pull_by_regions_snake_results/pull_sd_regions/Minigraph/{gene}.tbl"))
-DUPLICONS = tri_bed(glue("../sd_regions_in_hifi_wga/pull_by_regions_snake_results/pull_sd_regions/Masked/{gene}_dupmasker_colors.bed"))
-ALL_GENES = readbed(glue("../sd_regions_in_hifi_wga/pull_by_regions_snake_results/pull_sd_regions/Liftoff/{gene}.all.bed"),"genes")
-
-GFA = glue("../sd_regions_in_hifi_wga/pull_by_regions_snake_results/pull_sd_regions/Minigraph/{gene}.gfa")
-CSV = fread(glue("../sd_regions_in_hifi_wga/pull_by_regions_snake_results/pull_sd_regions/Minigraph/{gene}.csv"))
+DF = fread(glue("{DATA_DIR}/Minigraph/{gene}.tbl"))
+DUPLICONS = tri_bed(glue("{DATA_DIR}/Masked/{gene}_dupmasker_colors.bed"))
+ALL_GENES = fread(glue("{DATA_DIR}/Liftoff/{gene}.all.bed"))
+names(ALL_GENES)[1:3] = c("chr","start","end")
+GFA = glue("{DATA_DIR}/Minigraph/{gene}.gfa")
+CSV = fread(glue("{DATA_DIR}/Minigraph/{gene}.csv"))
 
 #
 # Filter data to only show top results
@@ -135,9 +161,9 @@ R_NAMES = unique(DF$r)
 Q_NAMES = unique(DF$q)
 Q_ONLY = Q_NAMES[!Q_NAMES %in% R_NAMES]
 NUM_R = length(R_NAMES)
-MAX_SM = max(NUM_R, 10)
+MAX_SM = max(NUM_R, MAX_ROWS)
 KEEP = as.factor(c(as.character(R_NAMES), as.character(Q_ONLY[1:(MAX_SM-NUM_R)])))
-
+KEEP = KEEP[!is.na(KEEP)]
 df = clean_df(DF, KEEP)
 duplicons = clean_df(DUPLICONS, KEEP)
 all_genes = clean_df(ALL_GENES, KEEP)
@@ -193,6 +219,8 @@ dup_legend = ggplot()+
 otherr =  unique(df$r)[ !grepl("CHM13|GRCh38", unique(df$r), ignore.case = TRUE, perl = TRUE)]
 if( length(unique(df$r))==1 ){
   rcolors =  NEWCOLOR
+}else if( length(unique(df$r))==2 ){
+  rcolors=c(NEWCOLOR, OLDCOLOR)
 }else if(length(unique(df$r))<13) {
   rcolors = brewer.pal(length(unique(df$r)), "Set3") 
 } else{
@@ -316,7 +344,10 @@ p = p1 +
         plot.title = element_text(hjust=0.5),
         axis.line.y = element_blank(), axis.ticks.y = element_blank(), axis.text.y = element_blank(), 
         strip.background = element_rect(colour=NA, fill=NA),
-        panel.border = element_rect(color = transparent("gray", 0.5), fill = NA, size = .1),
+        panel.border = element_rect(color = rgb(col2rgb("gray")[,1]["red"],
+                                                col2rgb("gray")[,1]["green"],
+                                                col2rgb("gray")[,1]["blue"],
+                                                0.5, maxColorValue = 255), fill = NA, size = .1),
         plot.margin = unit(c(1,3,1,1), "cm"),
         strip.text.y.left   = element_text(angle=0, hjust=0)
         ); p
@@ -328,12 +359,15 @@ p = p1 +
 # Make the bandage figure
 #
 #
-colorcsv = merge(csv, DataFrame(Label = names(colors), Color=colors), by="Label")
+if( ! dir.exists("temp")){
+  dir.create("temp")
+}
+colorcsv = merge(csv, data.table(Label = names(colors), Color=colors), by="Label")
 write.table(colorcsv[c("Name","Color")], file="temp/tmp.gfa.csv", sep=",", quote = FALSE, row.names = FALSE)
 
 # ./Bandage.app/Contents/MacOS/Bandage image ~/Desktop/EichlerVolumes/chm13_t2t/nobackups/minigraph/loci_of_interest/CHR1_QCEN.gfa ~/Desktop/tmp.png --colors ~/Desktop/EichlerVolumes/chm13_t2t/nobackups/plots/temp/tmp.gfa.csv
 gfa_h = 400*length(unique(df$q))
-system(glue("~/software/Bandage//Bandage.app/Contents/MacOS/Bandage image {GFA} temp/{gene}.png --linear --height {gfa_h}  --colors temp/tmp.gfa.csv"))
+system(glue("{BANDAGE_PATH}/Bandage image {GFA} temp/{gene}.png --linear --height {gfa_h}  --colors temp/tmp.gfa.csv"))
 system(glue("convert temp/{gene}.png -rotate 90 temp/{gene}.r.png"))
 system(glue("rm temp/{gene}.png temp/tmp.gfa.csv"))
 graph_figure = ggdraw() + draw_image(glue("temp/{gene}.r.png"))
