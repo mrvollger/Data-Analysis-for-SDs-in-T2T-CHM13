@@ -11,12 +11,17 @@ if(! require("cowplot")) install.packages("cowplot")
 CHRS <<- c(paste0("chr",seq(1,22)),"chrX", "chrY", "chrM", "chrMT")
 NOYM = CHRS[! CHRS %in% c("chrY","chrMT","chrM")]
 NOM = CHRS[! CHRS %in% c("chrMT","chrM")]
-
 GRAY = "#2F4F4F"	
 RED = "#af0404"
 BLUE = "#3282b8"
 NEWCOLOR = RED
 OLDCOLOR = GRAY 
+
+
+#
+#  START READING
+#
+
 # change this if you want
 MAX_ROWS = 10 # the maximum number of rows to plot, though it always plots all the seqs the contribute to building the graph
 # CHANGE THIS !!!!!!!!!!!
@@ -31,7 +36,7 @@ BANDAGE_PATH = "~/software/Bandage//Bandage.app/Contents/MacOS/"
 # gene = "region you name you used in pull_region"
 # search_gene = "gene\pattern to search for in the gene file"
 # simple_gene = "title for plot: variation in {simple_gene}"
-if(T){
+if(F){
   gene="middle_TBC1D3_unique_sequence"
   search_gene="TBC1D3"
   simple_gene="between TBC1D3 site 1 and 2"
@@ -75,6 +80,11 @@ if(F){
   search_gene="NOTCH2|SRGAP2"
   simple_gene="Chr1 qCen (NOTCH2, SRGAP2)"
 }
+
+#
+# STOP READING
+#
+
 
 tri_bed <- function(f, s=.2, allowed_names=c()){
   #df = fread(glue("../sd_regions_in_hifi_wga/lpa/minimiro/temp_minimiro/{gene}_query.fasta.duplicons.extra")); df
@@ -362,8 +372,8 @@ p = p1 +
 if( ! dir.exists("temp")){
   dir.create("temp")
 }
-colorcsv = merge(csv, data.table(Label = names(colors), Color=colors), by="Label")
-write.table(colorcsv[c("Name","Color")], file="temp/tmp.gfa.csv", sep=",", quote = FALSE, row.names = FALSE)
+colorcsv = merge(csv, data.table(Label = names(colors), Color=colors), by="Label")[,c("Name","Color")]
+write.table(colorcsv, file="temp/tmp.gfa.csv", sep=",", quote = FALSE, row.names = FALSE)
 
 # ./Bandage.app/Contents/MacOS/Bandage image ~/Desktop/EichlerVolumes/chm13_t2t/nobackups/minigraph/loci_of_interest/CHR1_QCEN.gfa ~/Desktop/tmp.png --colors ~/Desktop/EichlerVolumes/chm13_t2t/nobackups/plots/temp/tmp.gfa.csv
 gfa_h = 400*length(unique(df$q))
