@@ -3,11 +3,11 @@
 source("plotutils.R")
 
 
-all = readbed(glue("../Assembly_analysis/Align/{V}.split.bed"), "All 5kbp windows")
+all = ALL_ALN
 #all = all[!grepl('chrY', all$chr)] # filter out chrY since we have no chrY, we now have a y so comment
-sds = readbed(glue("../Assembly_analysis/Align/{V}.split.sd.bed"), "SDs")
-flank = readbed(glue("../Assembly_analysis/Align/{V}.split.sdflank.bed"), "SD flanks")
-nonsd = readbed(glue("../Assembly_analysis/Align/{V}.split.nosd.bed"), "Non SD")
+sds = SDS_ALN
+flank = FLANK_ALN
+nonsd = NONSD_ALN
 chrx = all[all$chr == "chrX"]; chrx$Assembly="chrX"
 mhc_rgn = "chr6:28,510,120-33,480,577"
 mhc = all[ in_rgn(all, mhc_rgn) ]; mhc$Assembly="MHC"
@@ -23,16 +23,34 @@ df$Divergence = 100-df$perID_by_events
 df$aln_frac =  (df$end - df$start) / df$query_length
 
 
-
+#
+# calculate p values 
+#
 insync = df[! overlaps(df, NEW)]
+p_value = wilcox.test(insync[Assembly == "SDs"]$Divergence,
+            insync[Assembly == "Non SD"]$Divergence,
+            alternative = "greater")$p.value
+
+if(p_value < 0.0001){
+  ptext = c("H[a]:~SDs>Non~SD", 'p<0.0001'); ptext
+} else {
+  ptext = paste0("H[a]:~SDs>Non~SD:p==",p_value); ptext
+} 
+
 fakeadd=0.01
-p1 = ggplot(data = insync, aes(Divergence+fakeadd, color = Assembly)) + stat_ecdf(size=1.5, alpha=0.75) + 
+p1 = ggplot() + 
+  stat_ecdf(data = insync, 
+            aes(Divergence+fakeadd, color = Assembly),
+            size=1.5, alpha=0.75) + 
   scale_x_log10(limits=c(fakeadd, NA), breaks = c(fakeadd,0.1,1,10), labels = c("0","0.10","1.00","10.00")) + annotation_logticks(sides="b")+
   scale_fill_manual(values=pal) + scale_color_manual(values=pal) +
-  xlab("% divergence of 5kbp windows aligned from GRCh38 to CHM12 T2T") +
+  #geom_text(data=NULL,aes(x=1, y=0.25, label = ptext))+
+  annotate("text", x=1, y=c(0.25, 0.20),label=ptext, parse=TRUE, hjust=0,size=5)+
+  xlab("% divergence of 5kbp windows aligned \n from GRCh38 to T2T CHM13") +
   ylab("Cumulative fraction of 5kbp windows") +
   theme_cowplot()+
-  theme(legend.position = "bottom", legend.title = element_blank()) + guides(fill=guide_legend(ncol=length(pal)/2)) ; p1
+  theme(legend.position = "top", legend.title = element_blank()) + guides(fill=guide_legend(ncol=length(pal)/2)) 
+p1
 ggsave("supp/div_ecdf.pdf", width = 12, height = 8, plot=p1)
 
 
@@ -84,6 +102,25 @@ p = plot_grid(p1,
 ggsave("figures/Divergence.pdf", plot=p, height = 14, width = 14)
 
       
+plot.new = NEW %>%
+  mutate(length=end-start)
+length_stats(plot.new)
+new_lengths = ggplot(data = plot.new,
+                     aes(x=length, fill="a")) +
+  geom_histogram(bins=25) + 
+  scale_x_continuous(label=comma, trans = "log10")+
+  annotation_logticks(side="b")+
+  ylab("Count") +
+  xlab("Genomic length of new or structurally different regions")+
+  theme_cowplot() + 
+  theme(legend.position = "none")+
+  scale_fill_manual(values = c(NEWCOLOR))
+xx  = ggdraw(new_lengths)+
+  draw_grob(tableGrob(length_stats(plot.new),
+                      rows=NULL, theme = ttheme_minimal()),
+            x=0, y=.25, width=1, height=1, hjust = 0, vjust = 0)
+
+ggsave("supp/new_region_lengths.pdf", plot=xx, height = 8, width = 12)  
 
 
 

@@ -32,6 +32,8 @@ library(maps)
 library(magick)
 library(zoo)
 library(ggforce)
+library(ggridges)
+
 #setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
 #suppressPackageStartupMessages(library("argparse"))
 #library(argparse)
@@ -83,7 +85,10 @@ grtodf = function(gr){
 # util funcations
 #
 add_genes=function(df){
-  x = do_bedtools_intersect(toGRanges(df[,1:4]), toGRanges(GENES[,1:4]), loj = T); nrow(df)
+  #df=rdg[,c(4,5,6,1)]
+  #x = do_bedtools_intersect(toGRanges(df[,1:4]), toGRanges(GENES[,1:4]), loj = T); nrow(df)
+  o = findOverlaps(toGRanges(df), toGRanges(GENES))
+  cbind(df[queryHits(o)], GENES[subjectHits(o)])
 }
 
 rgntag = function(q,r, tag, minoverlap=0, mincov=0.5, rreduce=FALSE){
@@ -260,6 +265,22 @@ zoom = function(df, lift){
   df=df[!is.na(start)]
   df$start[df$start<0]=0
   return(df)
+}
+
+
+length_stats <- function(df){
+  lengths = rev(sort(df$length))
+  total = sum(lengths)
+  cumm = 0; N50=0
+  for(len in lengths){
+    if(cumm >= total/2){
+      N50=len
+      break
+    }
+    cumm = cumm + len
+  }
+  data.table(label=c("Count", "Total bp", "N50", "median", "mean"),
+             value = c(length(lengths), total, N50, median(lengths), mean(lengths)))
 }
 
 

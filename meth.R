@@ -1,6 +1,8 @@
 #!/usr/bin/env Rscript
 setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
 source("plotutils.R")
+
+METH_SD_GENES = fread("../t2t_globus_share/team-epigenetics/20200727_methylation/v1.0_methylation/SD_analysis/sd.transcripts.10kb_methAG.bed.gz")
 df = fread("../t2t_globus_share/team-epigenetics/20200727_methylation/v1.0_methylation/t2t_chm13v1.0_SD_clustered_methylation.bed")
 
 mycol = function(x){
@@ -198,3 +200,67 @@ gene_plot = ggplot(data=gage %>% arrange(n_transcripts))+
 meth_fig =plot_grid(plot_grid(meth_block_plot, iso_meth_plot, rel_widths = c(1,2), labels = c("a","b")), gene_plot, nrow=2, rel_heights = c(2,1), labels = c(NA,"c"))
 meth_fig
 ggsave("figures/meth_fig.pdf", plot=meth_fig, height = 12, width = 16)
+
+
+
+
+#
+# near tts site methylation
+#
+near_tss  = gene.df %>% 
+  group_by(is_sd, quartile) %>%
+  mutate(median = median(methylated_frequency)) %>%
+  filter(min > -0.01 & max < 0.01); near_tss
+
+sdtts = near_tss[near_tss$is_sd & near_tss$n_transcripts == 0,]
+utts = near_tss[!near_tss$is_sd & near_tss$n_transcripts == 0,]
+
+ggplot(data=near_tss,
+       aes(methylated_frequency,
+           color=is_sd, fill=is_sd)) +
+  geom_density() +
+  geom_histogram(bins=30)+
+  facet_grid(is_sd~quartile) + 
+  scale_color_manual("SD gene", values = c(OLDCOLOR, NEWCOLOR))+
+  scale_fill_manual("SD gene", values = c(OLDCOLOR, NEWCOLOR))+
+  theme_cowplot()
+  
+
+
+wilcox.test(sdtts$methylated_frequency, 
+            utts$methylated_frequency, alternative = "greater")
+
+near_tss %>% group_by(is_sd, quartile) %>% 
+  summarise(median_at_tts = median(methylated_frequency), median_overall = unique(median)) %>%
+  mutate(difference = median_at_tts - median_overall)
+
+
+#
+# check if the untranscribed genes overlap with hypomethylated blocks
+#
+gene_meth_pos = unique(in.df[,c("chr","gene_start","gene_end","gene", "n_transcripts", "is_sd")])
+test_un = gene_meth_pos[is_sd & n_transcripts==0 & gene %in% near_tss$gene]
+test_un
+
+unmeth_x = unmeth[unmeth$avgmeth < 0.30]
+
+size_meth = sum(width(GenomicRanges::reduce(meth))); size_meth
+size_unmeth = sum(width(GenomicRanges::reduce(unmeth_x))); size_unmeth
+size_total = size_meth + size_unmeth
+
+inter_unmeth = subsetByOverlaps(toGRanges(test_un), toGRanges(unmeth_x))
+inter_meth = subsetByOverlaps(toGRanges(test_un), toGRanges(meth))
+
+
+rand_n_not_meth = function(fake){
+  results = sample(c(0, 1), size=length(inter_meth)+length(inter_unmeth), replace=T, prob=c(size_meth/size_total, size_unmeth/size_total))
+  sum(results)
+}
+permutation_results = sapply(seq(10000), rand_n_not_meth)
+our_result = length(inter_unmeth)
+hist(permutation_results, breaks=50)#, breaks=seq(125,225))
+lines(x = rep(our_result, 2), y=c(0,1000000), col="red")
+
+p_value_for_unmth_enrichment = 1 - sum(our_result > permutation_results)/ length(permutation_results)
+p_value_for_unmth_enrichment
+

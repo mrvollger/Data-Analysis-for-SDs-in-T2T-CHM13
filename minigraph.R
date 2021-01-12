@@ -23,10 +23,10 @@ OLDCOLOR = GRAY
 #
 
 # change this if you want
-MAX_ROWS = 10 # the maximum number of rows to plot, though it always plots all the seqs the contribute to building the graph
+MAX_ROWS = 15 # the maximum number of rows to plot, though it always plots all the seqs the contribute to building the graph
 # CHANGE THIS !!!!!!!!!!!
-DATA_DIR = "../sd_regions_in_hifi_wga/pull_by_regions_snake_results/pull_sd_regions"
 DATA_DIR = "../orthology_analysis/TBC1D3/minigraph/pull_sd_regions"
+DATA_DIR = "../sd_regions_in_hifi_wga/pull_by_regions_snake_results/pull_sd_regions"
 BANDAGE_PATH = "~/software/Bandage//Bandage.app/Contents/MacOS/"
 
 # READ HERE!!!!!!!!!!!!
@@ -41,7 +41,7 @@ if(F){
   search_gene="TBC1D3"
   simple_gene="between TBC1D3 site 1 and 2"
 }
-if(F){
+if(T){
   gene="TBC1D3_1"
   search_gene = "TBC1D3"
   simple_gene="TBC1D3 (1)"
@@ -70,7 +70,7 @@ if(F){
   search_gene = gene
   simple_gene = gsub("\\|", ",",search_gene)
 }
-if(F){
+if(T){
   gene="EIF3C"
   search_gene="NPIP"
   simple_gene="16p11.2"
@@ -79,6 +79,14 @@ if(F){
   gene="CHR1_QCEN"
   search_gene="NOTCH2|SRGAP2"
   simple_gene="Chr1 qCen (NOTCH2, SRGAP2)"
+}
+if(F){
+  gene="NOTCH2NL"
+  search_gene="NOTCH2NL"
+  simple_gene="NOTCH2NL"
+}
+if(F){
+  gene="LPA"; search_gene=gene; simple_gene=gene
 }
 
 #
@@ -157,6 +165,7 @@ OLDCOLOR = GRAY
 #
 # load data, and make names human readable
 # 
+
 DF = fread(glue("{DATA_DIR}/Minigraph/{gene}.tbl"))
 DUPLICONS = tri_bed(glue("{DATA_DIR}/Masked/{gene}_dupmasker_colors.bed"))
 ALL_GENES = fread(glue("{DATA_DIR}/Liftoff/{gene}.all.bed"))
@@ -174,6 +183,10 @@ NUM_R = length(R_NAMES)
 MAX_SM = max(NUM_R, MAX_ROWS)
 KEEP = as.factor(c(as.character(R_NAMES), as.character(Q_ONLY[1:(MAX_SM-NUM_R)])))
 KEEP = KEEP[!is.na(KEEP)]
+# orgganize by length
+KEEP = unique(c("CHM13.pri__1","GRCh38chrOnly.pri__1", merge(data.table(q=KEEP), DF[, c("q","ql")])[order(ql)]$q))
+
+# cleanup the DF
 df = clean_df(DF, KEEP)
 duplicons = clean_df(DUPLICONS, KEEP)
 all_genes = clean_df(ALL_GENES, KEEP)
@@ -328,12 +341,18 @@ p = p1 +
   new_scale_fill() + new_scale_color() +
   
   # add in the gene data
-  geom_segment(data=all_genes, 
+  geom_segment(data=all_genes %>% filter(arrow == "first"), 
            aes(x=start, xend=end,
                y=1 - (dup_offset-s*target)/2, yend=1 - (dup_offset-s*target)/2,
                color=target, group=chr),
-           arrow = arrow(length = unit(0.08, "npc"), ends = all_genes$arrow),
+           arrow = arrow(length = unit(0.08, "npc"), ends = "first"),
            size=.5)+
+  geom_segment(data=all_genes %>% filter(arrow == "last"), 
+               aes(x=start, xend=end,
+                   y=1 - (dup_offset-s*target)/2, yend=1 - (dup_offset-s*target)/2,
+                   color=target, group=chr),
+               arrow = arrow(length = unit(0.08, "npc"), ends = "last"),
+               size=.5)+
   scale_color_manual(values = c(`FALSE`="black", `TRUE`="red")) +
   new_scale_color() + 
   

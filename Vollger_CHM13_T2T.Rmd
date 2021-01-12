@@ -9,13 +9,12 @@ if(isRStudio){
   setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
 }
 source("plotutils.R")
-source("load_data.R")
+#source("load_data.R")
 ```
 
 
 # Duplicon figure
-```{r Duplicons}
-source("plotutils.R")
+```{r Duplicons, echo=FALSE}
 #
 # data setup
 #
@@ -26,7 +25,6 @@ rm=rm[end-start>10000 & type == "Satellite"]
 
 duplicons=DM_BED
 duplicons$hex = sapply(strsplit(duplicons$V9, ","), function(x) rgb(x[1], x[2], x[3], maxColorValue=255))
-dup.genes = fread("tmp.dup.gene"); colnames(dup.genes)=c("duplicon","gene")
 
 probes = readbed("../FES_stuff/acro_cn/probe.mappings.bed", "probes")
 probes$probe_id = gsub("::.*","",probes$probe_id)
@@ -57,44 +55,9 @@ zoom_rgns  = data.table(enriched_sds %>%
 zoom_rgns$chr = factor(zoom_rgns$chr, levels =  c(CHRS, unique(zoom_rgns$chr[which(!zoom_rgns$chr %in% CHRS)]) ) , ordered = TRUE)
 zoom_rgns$chr = factor(zoom_rgns$chr, levels = unique(c(ACHRO,NOM)))
 zoom_rgns = zoom_rgns[order(chr)]
-
-
-#
-#
-# Table showing the duplicons increases
-#
-dups = data.table(rbind(DM, DM_38) %>% 
-                    group_by(duplicon,Assembly) %>% 
-                    summarise(count=sum(end-start), anc= unique(ancestral_position), chr_band= unique(chr_band)) %>%
-                    mutate(diff=max(count)-min(count)) %>%
-                    ungroup()%>%arrange(desc(diff))); 
-
-dups=merge(dups, dup.genes, by="duplicon", all.x=T)
-dups$label = paste(dups$duplicon, paste0("(",paste0(str_trunc(dups$gene, 20),")")))
-dups=data.table(dups%>%arrange(desc(diff)))
-dups$label = factor(as.character(dups$label), levels = unique(as.character(dups$label)))
-
-n = 30*length(unique(dups$Assembly))
-p_duplicons = ggplot(data = dups[1:n], aes(y=label, weight=count/1000, fill=Assembly)) + 
-  geom_bar(position="dodge") +
-  scale_fill_manual(values=COLORS)+
-  xlab("Total duplicon content (kbp)") +
-  ylab("Duplicon (Gene:count,...)") +
-  #scale_y_discrete(position = "right")+
-  #scale_x_reverse(label=comma)+
-  scale_x_continuous(label=comma)+
-  labs(title="30 duplicons with largest change between\nT2T CHM13 and GRCh38") +
-  theme_cowplot()+theme(legend.position = "top", 
-                        plot.title = element_text(hjust = 0.5)
-                         #axis.text.x = element_text(angle = -65, vjust = 0, hjust=-0)
-                        ); 
-
-
-ggsave("supp/dup_hist.pdf", height = 8, width = 12, plot=p_duplicons)
-
-p_duplicons
-
-
+zoom_rgns = merge(zoom_rgns, FAI)
+zoom_rgns[ end > chrlen]$end = zoom_rgns[end > chrlen]$chrlen
+zoom_rgns = zoom_rgns[,1:7]
 
 #
 #
@@ -135,10 +98,45 @@ probes.z = zoom(probes, zoom_rgns)
 Ns.z = zoom(NS, zoom_rgns)
 
 #
+# make a karyoplot with the zoom rgns
+#
+small = as.ggplot(expression(
+  kp<- plotKaryotype(genome=GENOME,
+                     chromosomes = unique(zoom_rgns$chr), 
+                     plot.type = 6, cytobands = CYTO, cex=0.75),
+  kpPlotRegions(kp,data=toGRanges(zoom_rgns), col="green", clipping = T,data.panel = "ideogram", border = NA)
+  )
+)
+#
+# make a little legend
+# 
+flat_dup_leg = as.ggplot(expression(
+  min<-1.25e6,
+  plot.params <- getDefaultPlotParams(plot.type = 1),
+  plot.params$ideogramheight<-25,
+  kp<-plotKaryotype(genome=data.frame(chr=zoom_rgns$name, length=zoom_rgns$end-zoom_rgns$start), 
+                    plot.params = plot.params,
+                    zoom=toGRanges(data.frame(chr = "chr14:0-14", start=min, end=2.3e6))),
+  kpAddCytobands(kp),
+  kpAddBaseNumbers(kp),
+  kpRect(kp, chr=duplicons.z$zname, x0 = duplicons.z$start, x1=duplicons.z$end, y0=0, y1=1, r0=0, r1=.4,  border=NA, col=duplicons.z$hex ),
+  kpPlotMarkers(kp, chr=probes.z$zname, x=(probes.z$start + probes.z$end)/2, 
+                labels = probes.z$label, text.orientation = "horizontal", 
+                r0=0.5, r1=.8, max.iter = 1000, cex=1, ignore.chromosome.ends = TRUE, clipping = FALSE),
+  kpRect(kp, chr=sedef_flat.z$zname, x0 = sedef_flat.z$start, x1=sedef_flat.z$end, y0=0, y1=1,  border=NA, col=NEWCOLOR, data.panel = "ideogram"),
+  kpRect(kp, chr=rm.z$zname, x0 = rm.z$start, x1=rm.z$end, y0=0.0, y1=1,  border=NA, col=OLDCOLOR, data.panel = "ideogram"),
+  kpRect(kp, chr=Ns.z$zname, x0 = Ns.z$start, x1=Ns.z$end, y0=0.0, y1=1,  border=NA, col="black", data.panel = "ideogram"),
+  kpText(kp,chr="chr14:0-14", x = c(min,min,min,min+1e5, min+3e5)-1e5, 
+         y=c(0.8,0.65, 0.35, 0.35,0.35),
+         labels = c("Probe ID", "Duplicons", "SDs,", "Satellites,","Gaps"),
+         col=c("black","black",NEWCOLOR, OLDCOLOR, "black"),
+         r0=-1, r1=1, adj=0, cex = 1)
+)); 
+flat_dup_leg
 #
 # karyolpot showing the duplicons and probes
 #
-flat_duplicon=as.ggplot(expression(
+flat_duplicon_1=as.ggplot(expression(
   plot.params <- getDefaultPlotParams(plot.type = 1),
   plot.params$ideogramheight<-25,
   kp<-plotKaryotype(genome=data.frame(chr=zoom_rgns$name, length=zoom_rgns$end-zoom_rgns$start), plot.params = plot.params),
@@ -153,20 +151,19 @@ flat_duplicon=as.ggplot(expression(
   #              avoid.overlapping = FALSE),
   kpPlotMarkers(kp, chr=probes.z$zname, x=(probes.z$start + probes.z$end)/2, 
                 labels = probes.z$label, text.orientation = "horizontal", 
-                r0=0.5, r1=.8),
+                r0=0.5, r1=.8, max.iter = 1000),
                 #line.color = probes.z$color),
   kpRect(kp, chr=sedef_flat.z$zname, x0 = sedef_flat.z$start, x1=sedef_flat.z$end, y0=0, y1=1,  border=NA, col=NEWCOLOR, data.panel = "ideogram"),
   kpRect(kp, chr=rm.z$zname, x0 = rm.z$start, x1=rm.z$end, y0=0.05, y1=.95,  border=NA, col=transparent(OLDCOLOR,0.25), data.panel = "ideogram"),
   kpRect(kp, chr=Ns.z$zname, x0 = Ns.z$start, x1=Ns.z$end, y0=0.05, y1=.95,  border=NA, col="black", data.panel = "ideogram")
   )) +
-  ggtitle("Assembly SD predicted FISH locations for fosmid probes") + 
+  #ggtitle("Assembly SD predicted FISH locations for fosmid probes") + 
   theme_map() + theme(plot.title = element_text(hjust=0.5, face = "bold") )
-flat_duplicon
+flat_duplicon = plot_grid(small, flat_duplicon_1, rel_widths =c(1,4))
 
 probe_plot = plot_grid(flat_duplicon, probe_l, nrow=2, rel_heights = c(8,1)) #labs(title = "Location of FISH probes on novel acrocentric duplications")
 
 ggsave("supp/dup_ideo_flat.pdf", height = length(unique(duplicons.z$zname))*.8, width = 20, plot=probe_plot)
-
 
 
 #
@@ -223,13 +220,15 @@ ggsave("supp/dup_probe_tbl.pdf", height = 10, width = 16, plot = probe_tbl)
 g_fish_imgs = ggdraw() + draw_image("FISH/FES_FISHRESULTS_GM24385_LM new.png") + theme_map() + ggtitle("\nFosmid probe FISH signals for CHM13") + theme(plot.title = element_text(hjust=0.5))
 
 
-top=plot_grid(p_duplicons, probe_plot, labels=c("a","b"), rel_widths = c(4,5))
-figure = plot_grid(top, g_fish_imgs, labels = c(NA,"c"), rel_heights = c(5,2), nrow=2)
+x=ggdraw()+draw_image("FISH/FES_FISHRESULTS_GM24385_LM new.png", x=0.1, y=0.1, height = .1, width = 1)
 
-figure = plot_grid(flat_duplicon,
+flat_duplicon_lab = ggdraw() + draw_plot(flat_duplicon) + draw_plot(flat_dup_leg, x = .7, y=.3, height = .4,width = .3)
+
+
+figure = plot_grid(flat_duplicon_lab,
                    plot_grid(
                             g_fish_imgs,
-                            p_duplicons,
+                            NULL,
                              labels = c("b","c"),
                              rel_widths = c(2,3)
                              ),
@@ -248,7 +247,7 @@ ggsave("figures/Duplicons.png", plot=figure , width=12*scale, height=10*scale, d
 
 
 # Figure 1
-```{r Figure1 intra}
+```{r Figure1 intra, echo=FALSE}
 #
 # data setup
 #
@@ -261,7 +260,7 @@ chrs = CHRS[1:length(CHRS)-1]
 intra$color = GRAY
 intra.new <- overlap_either(intra, NEW)
 intra$color[intra.new] = NEWCOLOR
-intra$color[intra.new & intra$fracMatch >= 0.95 & intra$alnB >= 10000] = "#ff0000"
+#intra$color[intra.new & intra$fracMatch >= 0.95 & intra$alnB >= 10000] = "#ff0000"
 intra <- intra[order(-color)]
 #print(intra %>% group_by(color) %>% summarise(length(chr)))
 
@@ -283,16 +282,16 @@ gi.old <- setdiff(GenomicRanges::reduce(gi), GenomicRanges::reduce(gi.new))
 #
 Intra=as.ggplot(expression(
   kp <- plotKaryotype(genome = GENOME, cytobands = CYTO, chromosomes = NOM),
-  kpPlotRegions(kp, data=GenomicRanges::reduce(gi.new), col=transparent("orange", 0.25), data.panel = "ideogram", r0=0.0, r1=1, border = NA),
-  kpPlotRegions(kp, data=gi.old, col=transparent("orange", 0.25), data.panel = "ideogram", r0=0, r1=1, border = NA),
+  #kpPlotRegions(kp, data=GenomicRanges::reduce(gi.new), col=transparent("orange", 0.25), data.panel = "ideogram", r0=0.0, r1=1, border = NA),
+  #kpPlotRegions(kp, data=gi.old, col=transparent("orange", 0.25), data.panel = "ideogram", r0=0, r1=1, border = NA),
+  kpPlotRegions(kp, data=GenomicRanges::reduce(gi), col=transparent("orange", 0.25), data.panel = "ideogram", r0=0, r1=1, border = NA),
   kpPlotLinks(kp, 
               data=toGRanges(data.frame(chr=intra$chr,start=intra$start,intra$end)), data2=toGRanges(data.frame(chr=intra$chr2,start=intra$start2,intra$end2)), 
-              col=intra$color, border = NA)
-  #kpAddCytobands(kp)
+              col=intra$color, border = NA),
+  kpAddCytobands(kp)
   #pAddBaseNumbers(kp)
 ))
 ggsave("supp/intra_sd_ideo.pdf", width = 12, height = 8, plot=Intra)
-
 ```
 
 ```{r, Figure1 inter, echo=FALSE}
@@ -302,8 +301,13 @@ ggsave("supp/intra_sd_ideo.pdf", width = 12, height = 8, plot=Intra)
 
 Inter <- function(){
   # data
-  sedef.inter <- inter
+  sedef.inter <- SEDEF[chr != chr2 & original & chr %in% NOM & chr2 %in% NOM]
   cyto.df <- data.frame(CYTO)[, c("seqnames","start","end","seqnames","gieStain")]
+  cyto.df = cyto.df[cyto.df$seqnames %in% NOM,]
+  cyto.df$seqnames = factor(cyto.df$seqnames, levels =  c(CHRS[!CHRS %in% ACHRO ], ACHRO))
+  cyto.df  = cyto.df[order(cyto.df$gieStain, cyto.df$seqnames),]
+  cyto.df$seqnames = as.character(cyto.df$seqnames)
+  
   new <- overlap_either(sedef.inter, NEW)
   sedef.inter$color = GRAY
   sedef.inter$color[new] = NEWCOLOR
@@ -311,7 +315,7 @@ Inter <- function(){
   gap.degree=360/(4*length(unique(cyto.df$seqnames))); gap.degree
   circos.clear()
   circos.par(cell.padding = c(0, 0, 0, 0), gap.degree=gap.degree)
-  circos.initializeWithIdeogram(cyto.df, ideogram.height = .05 )
+  circos.initializeWithIdeogram(cyto.df, ideogram.height = .05, sort.chr = F )
   #circos.genomicRect(enriched[,1:3], ybottom =0, ytop=1, border = NA, col="red")
   #circos.genomicRainfall(sedef[,1:3])
   #circos.genomicRainfall(sedef.inter[,1:3]);  circos.genomicRainfall(sedef.inter[,c("chr2","start2", "end2")])
@@ -407,8 +411,78 @@ sd_comparison = plot_grid(p_mpb, p_she); sd_comparison
 #legend(x = "bottom", fill = transparent(c(NEWCOLOR, OLDCOLOR),0.25), legend = c("SDs more than 0.5% diverged from GRCh38", "Density of all SDs")); Cmain
 ```
 
+```{r, Figure 1 duplicons}
+#
+#
+# Table showing the duplicons increases
+#
+dups = data.table(rbind(DM, DM_38) %>% 
+                    group_by(duplicon,Assembly) %>% 
+                    summarise(count=sum(end-start), anc= unique(ancestral_position), chr_band= unique(chr_band)) %>%
+                    mutate(diff=max(count)-min(count)) %>%
+                    ungroup()%>%arrange(desc(diff))); 
 
-```{r, Figure1 plot}
+dups=merge(dups, DM_GENES, by="duplicon", all.x=T)
+# clean up the gene names
+dups$gene = gsub(":\\d+","",dups$gene)
+#dups$label = paste(dups$duplicon, paste0("(",paste0(str_trunc(dups$gene, 20),")")))
+dups$label = str_trunc(dups$gene, 15)
+dups=data.table(dups%>%arrange(desc(diff)))
+dups$label = factor(as.character(dups$label), levels = unique(as.character(dups$label)))
+
+
+# remove entried without the genes
+dups = dups[! is.na(gene)]
+
+n = 30*length(unique(dups$Assembly))
+p_duplicons = ggplot(data = dups[1:n],
+                     aes(x=label, weight=count/1000, fill=Assembly)) + 
+  geom_bar(position="dodge") +
+  scale_fill_manual(values=COLORS)+
+  ylab("Total duplicon content (kbp)") +
+  xlab("Duplicons associated with genes") +
+  #scale_y_discrete(position = "right")+
+  #scale_x_reverse(label=comma)+
+  scale_y_continuous(label=comma)+
+  #labs(title="30 duplicons with largest change between\nT2T CHM13 and GRCh38") +
+  theme_cowplot()+theme(legend.position = "none", 
+                        plot.title = element_text(hjust = 0.5),
+                        axis.text.x = element_text(angle = 55, vjust = 1, hjust=1)
+                        ); 
+
+
+ggsave("supp/dup_hist.pdf", height = 8, width = 12, plot=p_duplicons)
+```
+
+
+
+```{r, Figure1 plot, echo=FALSE}
+#
+# make the legend
+#
+tmp=c("SD shared with GRCh38", 
+      "New or structurally variable SD in T2T CHM13",
+      "Region of genomic instability",
+      "Centromere / HSAT array",
+      "Gap")
+f1_legend = get_legend(
+  ggplot(data=data.frame(SDs=factor(tmp, levels = tmp))) +
+  geom_bar(aes(1,fill=SDs)) +
+  scale_fill_manual(values=c(NEWCOLOR,
+                             OLDCOLOR,
+                             transparent("orange", 0.25),
+                             "black",
+                             CYTO_COLORS["stalk"]
+                             )
+                    ) +
+  theme_cowplot() + theme(legend.position = "bottom", 
+                          legend.direction = "vertical",
+                          legend.title = element_blank(),
+                          legend.text.align = 0,
+                          legend.justification="center")
+  )
+#ggdraw(f1_legend)
+
 #
 #
 # make the figure
@@ -416,47 +490,78 @@ sd_comparison = plot_grid(p_mpb, p_she); sd_comparison
 #
 g_inter = ggdraw() + draw_image("supp/inter_sd_circo.png")
 
-ideo = plot_grid(Intra, g_inter,  labels = c("a","b"), rel_widths = c(1,1), ncol=2); 
+ideo = plot_grid(Intra, g_inter,  labels = c("a","b"), rel_widths = c(6,5), ncol=2, scale = c(1,1.1)); 
 #p = plot_grid(ideo, She, nrow=2)
-f1 = plot_grid(ideo, sd_comparison, nrow=2, rel_heights = c(2,1))
+f1 = plot_grid(ggdraw() + draw_plot(ideo) + draw_plot(f1_legend, 1/3, 1/8, .3, .3), 
+               plot_grid(by_all, sheall$identity, p_duplicons, labels = c("c", "d", "e"), ncol=3), 
+               nrow=2, 
+               rel_heights = c(2,1))
   
 s=1.2
 ggsave("figures/Figure1.pdf", plot=f1, height = 12*s, width = 16*s)
 #ggsave("PairWise.pdf", plot=C1, height=8, width=8)
 #ggsave("Intra.pdf", plot=Intra, height=6, width=10)
 #ggsave("FigureS1.pdf", plot=p, height = 16, width = 16)
-
 ```
 
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+# Variation / WSSD_Figure 
 ```{r, echo=FALSE}
-pdf("testFigure_method1.pdf") # starts writing a PDF to file
-plot(1:10)                    # makes the actual plot
-dev.off()    
+#
+# load other plots
+# 
+source("wssd_sub_regions.R")
+rdg_colors = colors
+source("Divergence.R")
+div_ecdf=p1
+#
+# 
+#
+bp_hist
+ecdf_cn_plot
+rgn.df.with.genes = add_genes(rgn.df)
+sort((rgn.df.with.genes$gene))
+genes = c("NBPF15", "KCNJ18_2","SMN2", "AMY1A_2", "GRPIN2")
+keep = grepl(paste(genes,collapse = "|"), rgn.df.with.genes$gene)
+#clear_winner = c("chr9_3_12_cn_10", "chr1_5_2_cn_10", "chr13_1_79_cn_20");
+clear_winner = unique(rgn.df.with.genes$name[keep])
+gene_rgn = unique(rgn.df.with.genes[keep,c("name","gene")], by="gene", fromLast=T);gene_rgn
+winners = merge(rdg[name %in%  clear_winner], gene_rgn , by="name")
+winners$label = paste(gsub("_.*", "",winners$gene), 
+                      paste(paste(winners$chr, comma(winners$start), sep=":"), comma(winners$end), sep="-"),
+                      sep="\n")
+rgd_examples_plot = ggplot(data=winners, aes(x=CN))+
+  geom_density(aes(fill=status), alpha=0.5)+
+  geom_count(aes(y=0), shape=21, fill="cyan", alpha=1)+
+  #geom_jitter(aes(y=0), height =0.05, width=0)+
+  geom_vline(aes(xintercept=hg38, color="GRCh38"), size=1, alpha=1, linetype="dashed")+
+  geom_vline(aes(xintercept=chm13, color="CHM13"), size=1, alpha=1, linetype="dashed")+
+  scale_color_manual(values = c(NEWCOLOR, OLDCOLOR))+
+  scale_fill_manual(values=rdg_colors)+
+  facet_wrap(vars(label), ncol = length(genes), scales = "free")+
+  theme_cowplot()+#theme(legend.position = "bottom")+
+  guides(fill=guide_legend(title="Better reference"),
+         color=guide_legend(title="Reference CN"),
+         size=guide_legend(title="# SGDP samples"))+
+  xlab("Diploid copy number")+
+  ylab("SGDP copy number density");rgd_examples_plot
+  #geom_rug()
+
+
+figure3 = plot_grid(
+  plot_grid(div_ecdf, bp_hist, ecdf_cn_plot,nrow = 1, labels = "auto"),
+  rgd_examples_plot,labels = c("","d"),
+  nrow=2
+  )
+ggsave("figures/Figure3.pdf", height = 12, width = 16, plot=figure3)
 ```
 
 
-# Circular SD plot
+
+
+# old bad Circular SD plot
 ```{r circos}
 source("plotutils.R")
 sedef=SEDEF
@@ -573,12 +678,6 @@ pdf(plotname, height =DIM, width = DIM)
 circos.nested(f2, f1, conversion, connection_col =chr_bg_color[conversion[[4]]], connection_height=0.2, connection_border = NA)
 dev.off()
 ```
-
-# WSSD_Figure 
-```{r}
-source("wssd_sub_regions.R")
-```
-
 
 
 ```{r, fig.show='hide'}

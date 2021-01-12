@@ -93,14 +93,37 @@ rdg$region_color = colors[rdg$status]
 # This plot shows the cumlative distribution of CN imporvment
 #
 ecdf_rdg = pivot_longer(rdg, cols = which(colnames(rdg) %in% c("chm13_diff","hg38_diff")), names_to="ecdf_name", values_to = "ecdf_diff" )
+
+simple_auc = function(fecdf, maxval){
+  auc = sum(fecdf(seq(0, maxval)))/maxval
+  auc
+}
+vals13 = abs( ecdf_rdg[ecdf_rdg$ecdf_name =="chm13_diff",]$ecdf_diff)
+ecdf13 = ecdf(vals13)
+vals38 = abs( ecdf_rdg[ecdf_rdg$ecdf_name =="hg38_diff",]$ecdf_diff)
+ecdf38 = ecdf(vals38)
+
+max_allowed_cn_diff = 30
+auc.df = data.frame(Reference = c("T2T CHM13", "GRCh38"), 
+                    AUC = round(c(simple_auc(ecdf13, max_allowed_cn_diff), 
+                            simple_auc(ecdf38, max_allowed_cn_diff)),2))
+#                    color = c("chm13_diff", "hg38_diff"))
+auc.df
+
 ecdf_cn_plot = ggplot(data=ecdf_rdg) + 
   stat_ecdf(aes(x=abs(ecdf_diff), color=ecdf_name), size=3) +
   scale_color_manual(values=c(chm13_diff=NEWCOLOR, hg38_diff=OLDCOLOR))+
   #coord_cartesian(xlim = c(0,20))+
-  facet_zoom(x= abs(ecdf_diff) < 15, zoom.size = 3)+
-  xlab("Maximum difference between sample CN and reference CN allowed to be considered correct")+
+  facet_zoom(x= abs(ecdf_diff) <= max_allowed_cn_diff, zoom.size = 3)+
+  xlab("Allowed CN difference between\nthe sample and the reference")+
   ylab("Cumulative fraction of correct CN representation")+
   theme_cowplot()+theme(legend.position = "none"); ecdf_cn_plot
+
+ecdf_cn_plot = ggdraw() + 
+  draw_plot(ecdf_cn_plot) +
+  draw_grob(tableGrob(auc.df, theme=ttheme_minimal(), rows=NULL), 
+            x=1, y=1, hjust = 1, vjust = 1.25, halign = 1, valign = 1)
+
 ggsave("supp/wssd_ecdf.pdf", width = 12, height = 8, plot=ecdf_cn_plot)
 
 
