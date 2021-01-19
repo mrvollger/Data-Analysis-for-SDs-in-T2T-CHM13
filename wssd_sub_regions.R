@@ -3,7 +3,8 @@ setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
 source("plotutils.R")
 
 
-colors = c(Polymorphic="gray", CHM13=NEWCOLOR, GRCh38=OLDCOLOR, Polymorphic="gray", Neither = "green")
+COLORS = c(`T2T CHM13`=NEWCOLOR,CHM13=NEWCOLOR, GRCh38=OLDCOLOR, Polymorphic="gray", Neither = "green", `Equal CN`="gray")
+colors=COLORS
 
 tmp1 = fread("../wssd/v1.0/combined_tables/new_genotypes/wssd/SYNTENY_EXP_SD_wssd_GMM.bed")
 #tmp2 = fread("../wssd/v1.0/rdg_20kb/HIGH_CN/HIGH_CN.hgdp.combined.wssd.GMM.bed")
@@ -21,8 +22,21 @@ if(F){
   maxcn=10
   pname="high"
 }
+tmp3=fread("../wssd/rdg_mitchell/rdg_archaics/NEW_WINDOWS/NEW_WINDOWS.archaics.combined.wssd.GMM.bed");
+tmp4=fread("../wssd/rdg_mitchell/rdg_hgdp/NEW_WINDOWS/NEW_WINDOWS.hgdp.combined.wssd.GMM.bed")
+tmp5=fread("../wssd/rdg_mitchell/rdg_kmer_ref/NEW_WINDOWS/NEW_WINDOWS.kmer_ref.combined.wssd.GMM.bed")
+tmp6=fread("../wssd/rdg_mitchell/rdg_sd_freeze/NEW_WINDOWS/NEW_WINDOWS.sd_freeze.combined.wssd.GMM.bed")
+tmp=merge(merge(merge(tmp4,tmp5),tmp6),tmp3)
+
+#tmp7=fread("../better_wssd_region_caller/CHM13.changepoint.filtered.bed")
+#tmp7=fread("../better_wssd_region_caller/mrv_try_wssd/ALL_RDG_CP/ALL_RDG_CP.archaics.combined.wssd.GMM.bed")
+#tmp$chm13 = tmp7$chm13
+#ignore_apes = c("Kamilah_GGO","Karenina_SSY","Mhudiblu_PPA","OwlMonkey_ANA","Susie_PAB","AG07107_MMU","Clint_PTR")
+#tmp[, (ignore_apes):=NULL]
 
 ignore = c("chr", "start","end","name","chm13", "hg38")
+
+
 cols =  which(!colnames(tmp) %in% ignore) #colnames(tmp)[!colnames(tmp) %in% ignore]
 
 popinfo = fread("../wssd/v1.0/rdg_20kb/hgdp_manifest.txt")
@@ -31,13 +45,13 @@ rdg = data.table(pivot_longer(tmp, cols=cols, names_to = "Samples", values_to = 
                    filter_if(~is.numeric(.), all_vars(!is.infinite(.))) %>%
                    mutate(chm13_diff = (CN-chm13), hg38_diff=(CN-hg38)) %>% 
                    mutate(diff = case_when(abs(chm13_diff) <= abs(hg38_diff) ~ chm13_diff, abs(chm13_diff) > abs(hg38_diff) ~ hg38_diff), 
-                          winner = case_when(abs(chm13_diff)==abs(hg38_diff) ~ "Polymorphic", abs(chm13_diff) < abs(hg38_diff) ~ "CHM13",  abs(chm13_diff) > abs(hg38_diff) ~ "GRCh38"))
+                          winner = case_when(abs(chm13_diff)==abs(hg38_diff) ~ "Equal CN", abs(chm13_diff) < abs(hg38_diff) ~ "CHM13",  abs(chm13_diff) > abs(hg38_diff) ~ "GRCh38"))
                    )
 # remove entries that overlap with Ns 
 has_Ns = queryHits(findOverlaps(toGRanges(rdg[,c("chr","start","end","name")]), toGRanges(NS)))
 rdg = rdg[-has_Ns,]
 
-rdg$color = colors[rdg$winner]
+rdg$color = COLORS[rdg$winner]
 n.sms = length(unique(rdg$Samples))
 
 
@@ -52,21 +66,21 @@ rgn.df  = data.table(rdg %>% group_by(chr,start,end,name) %>%
                                                     CHM13==0 & GRCh38==0 ~ "Neither", 
                                                     CHM13 >  GRCh38  ~ "CHM13", 
                                                     GRCh38 > CHM13 ~ "GRCh38",
-                                                    TRUE ~ "Polymorphic"),
-                                region_color = colors[status],
+                                                    TRUE ~ "Equal CN"),
+                                region_color = COLORS[status],
                                 status_std = case_when( 
                                   abs(chm13_cn - median) > std * n_stds & abs(hg38_cn - median) > std * n_stds ~ "Neither", 
                                   abs(chm13_cn - median) <= std * n_stds & abs(hg38_cn - median) <= std *n_stds ~ "Polymorphic", 
                                   abs(chm13_cn - median) <= std * n_stds ~ "CHM13", 
                                   abs(hg38_cn - median) <= std * n_stds ~ "GRCh38"
                                   ),
-                                region_color_std = colors[status_std]
+                                region_color_std = COLORS[status_std]
                                 )
                      )
                         
 
 # remove very high CN regions to remove the rDNA decoy copies
-to_remove_for_high_cn_and_rdna = rgn.df[median > 200]$name
+to_remove_for_high_cn_and_rdna = rgn.df[median > 200 & chr %in% ACHRO]$name
 rgn.df = rgn.df[! name %in% to_remove_for_high_cn_and_rdna]
 rdg = rdg[! name %in% to_remove_for_high_cn_and_rdna]
 
@@ -86,7 +100,7 @@ rdg= data.table( rdg %>% merge(pop_location, by="super_pop") %>% group_by(super_
 
 # merge with region info
 rdg = merge(rdg, rgn.df[,c("name","status")], on="name")
-rdg$region_color = colors[rdg$status]
+rdg$region_color = COLORS[rdg$status]
 
 #
 #
@@ -162,7 +176,10 @@ ideo = as.ggplot(expression(
 #kpPlotDensity(kp, data = toGRanges(rdg[winner=="Polymorphic",1:3]), col="gray")
 kpPlotRegions(kp, data = toGRanges(topp[,c("chr","start","end")]), col=topp$color, ylim=n.sms, data.panel = 1, r0=.15),
 kpPlotRegions(kp, data = toGRanges(botp[, c("chr","start","end")]), col=botp$color, ylim =n.sms, data.panel = 2, r0=.15),
-kpPlotRegions(kp, data = toGRanges(rgn.df[rgn.df$status!="Polymorphic",c("chr","start","end")]), col=rgn.df$region_color[rgn.df$status!="Polymorphic"], ylim = n.sms, data.panel = "ideogram", r0=0.2, r1=0.8, border = NA)
+kpPlotRegions(kp, 
+              data = toGRanges(rgn.df[rgn.df$status!="Equal CN",c("chr","start","end")]), 
+              col=rgn.df$region_color[rgn.df$status!="Equal CN"], 
+              ylim = n.sms, data.panel = "ideogram", r0=0.2, r1=0.8, border = NA)
 )); ideo
 ggsave("supp/wssd_ideo_exact_hist.pdf", width = 12, height = 8, plot=ideo)
 
@@ -194,9 +211,9 @@ p4 = ggplot(data=t2) + geom_bar(aes(y=status, x=count, fill=status), stat = "ide
 sizescale= 2
 zz_extra = data.table(rdg %>% group_by(super_pop,lat,long,n_super_pop,chr,start,end,name) %>%
                         summarise( CHM13 = sum( abs(CN-chm13) <= 1 ), GRCh38=sum(abs(CN-hg38) <= 1)) %>%
-                        mutate( status = case_when( CHM13==0 & GRCh38==0 ~ "Neither", CHM13 >  GRCh38  ~ "CHM13", GRCh38 > CHM13 ~ "GRCh38", TRUE ~ "Polymorphic" )) %>%
+                        mutate( status = case_when( CHM13==0 & GRCh38==0 ~ "Neither", CHM13 >  GRCh38  ~ "CHM13", GRCh38 > CHM13 ~ "GRCh38", TRUE ~ "Equal CN" )) %>%
                         ungroup() %>% group_by(super_pop,lat,long,n_super_pop) %>%
-                        summarise(CHM13 = sum(status=="CHM13")/length(status), GRCh38 = sum(status=="GRCh38")/length(status),Polymorphic = sum(status=="Polymorphic")/length(status), radius=sizescale*sqrt(unique(n_super_pop))));#unique(n_super_pop)/sizescale));zz_extra
+                        summarise(CHM13 = sum(status=="CHM13")/length(status), GRCh38 = sum(status=="GRCh38")/length(status),`Equal CN` = sum(status=="Equal CN")/length(status), radius=sizescale*sqrt(unique(n_super_pop))));#unique(n_super_pop)/sizescale));zz_extra
 
 
 
@@ -205,7 +222,7 @@ map <- ggplot(world, aes(long, lat)) +
   geom_map(map=world, aes(map_id=region), fill=NA, color="black") +
   coord_quickmap() +
   geom_scatterpie(aes(x=long, y=lat, group=super_pop, r=radius),
-                     data=zz_extra, cols=c("CHM13", "GRCh38", "Polymorphic"), color=NA, alpha=0.95) +
+                     data=zz_extra, cols=c("CHM13", "GRCh38", "Equal CN"), color=NA, alpha=0.95) +
   geom_scatterpie_legend(zz_extra$radius, x=-160, y=-55, labeller = function(x){x*x/sizescale} ) +
   scale_fill_manual(values=colors) + theme_map() + ylab("Latitude") + xlab("longitude") + theme(legend.position = "top", legend.title = element_blank(), legend.justification = "center"); map
 
@@ -216,14 +233,14 @@ ggsave("supp/wssd_map.pdf", width = 12, height = 8, plot=map)
 # mbp histogram
 # 
 bp_hist = ggplot(data=rgn.df,
-                 aes(x=status, weight=end-start, fill=status)
+                 aes(x=status, weight=(end-start)/1e6, fill=status)
                  )+
   geom_bar()+
   theme_cowplot()+
   scale_y_continuous(labels = comma) + 
   scale_fill_manual(values=colors) +
-  geom_text(stat='count', aes(label=comma(..count..)), vjust=-1)+
-  xlab("") + ylab("# of bp where more samples genotype with one reference") +
+  geom_text(stat='count', aes(label=round(..count..,2)), vjust=-1)+
+  xlab("") + ylab("# of Mbp where more samples have CN\ngenotypes equal to the reference") +
   theme(legend.position = "none")
 bp_hist
 ggsave("supp/wssd_bp_hist.pdf", width = 8, height = 8, plot=bp_hist)

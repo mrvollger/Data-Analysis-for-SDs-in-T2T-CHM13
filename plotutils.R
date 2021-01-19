@@ -33,6 +33,7 @@ library(magick)
 library(zoo)
 library(ggforce)
 library(ggridges)
+if(! require("ggnewscale")) install.packages("ggnewscale")
 
 #setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
 #suppressPackageStartupMessages(library("argparse"))
@@ -84,11 +85,15 @@ grtodf = function(gr){
 #
 # util funcations
 #
-add_genes=function(df){
+add_genes=function(df, all=FALSE){
   #df=rdg[,c(4,5,6,1)]
   #x = do_bedtools_intersect(toGRanges(df[,1:4]), toGRanges(GENES[,1:4]), loj = T); nrow(df)
-  o = findOverlaps(toGRanges(df), toGRanges(GENES))
-  cbind(df[queryHits(o)], GENES[subjectHits(o)])
+  tmp=GENES
+  if(all){
+    tmp = ALL_GENES
+  }
+  o = findOverlaps(toGRanges(df), toGRanges(tmp))
+  cbind(df[queryHits(o)], tmp[subjectHits(o)])
 }
 
 rgntag = function(q,r, tag, minoverlap=0, mincov=0.5, rreduce=FALSE){

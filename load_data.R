@@ -17,6 +17,11 @@ if(F){
   
   CYTO_COLORS = getCytobandColors()
   
+  CYTOtmp = toGRanges(fread("data/chm13.CytoBandIdeo.v2.txt", col.names = c("chr","start","end", "name","gieStain")))
+  CYTO38 = getCytobands(genome="hg38")
+  CYTOFULL = c(CYTOtmp,  CYTO38[seqnames(CYTO38) == "chrY"])
+  plotKaryotype(genome=GENOME, cytobands = CYTOFULL)
+  show_col(getCytobandColors())
   #
   # reading in data data frames
   #
@@ -26,6 +31,9 @@ if(F){
   
   GENES=readbed(glue("../Assembly_analysis/Liftoff/{V}.orf_only.bed"), "GENES")
   GENES$gene=GENES$V4
+  ALL_GENES=readbed(glue("../Assembly_analysis/Liftoff/{V}.all.bed"), "ALL_GENES")
+  ALL_GENES$gene=ALL_GENES$V4
+  
   RM = readbed("../Assembly_analysis/Masked/{V}_repeatmasker.out.bed", "T2T CHM13", rm=T)
   SAT = RM[RM$type == "Satellite"]
   
@@ -62,7 +70,7 @@ if(F){
   NONSD_ALN = readbed(glue("../Assembly_analysis/Align/{V}.split.nosd.bed"), "Non SD")
   
   
-  save.image("~/Desktop/Rdata/plotutils.data")
+  save.image("~/Desktop/Rdata/plotutils.data", compress = FALSE)
 } else {
   load("~/Desktop/Rdata/plotutils.data")
 }

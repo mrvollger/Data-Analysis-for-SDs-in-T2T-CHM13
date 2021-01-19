@@ -60,7 +60,7 @@ if(F){
   search_gene=gene
   simple_gene=gene
 }
-if(F){
+if(T){
   gene = "CYP2D6"
   search_gene = "CYP2D"
   simple_gene = gene
@@ -70,7 +70,7 @@ if(F){
   search_gene = gene
   simple_gene = gsub("\\|", ",",search_gene)
 }
-if(T){
+if(F){
   gene="EIF3C"
   search_gene="NPIP"
   simple_gene="16p11.2"

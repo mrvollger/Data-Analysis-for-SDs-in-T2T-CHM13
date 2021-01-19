@@ -2,8 +2,16 @@
 setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
 source("plotutils.R")
 
-METH_SD_GENES = fread("../t2t_globus_share/team-epigenetics/20200727_methylation/v1.0_methylation/SD_analysis/sd.transcripts.10kb_methAG.bed.gz")
-df = fread("../t2t_globus_share/team-epigenetics/20200727_methylation/v1.0_methylation/t2t_chm13v1.0_SD_clustered_methylation.bed")
+SAMPLE="HG002"
+SAMPLE=""
+if(F){
+  METH_SD_GENES = fread(glue("../t2t_globus_share/team-epigenetics/20200727_methylation/v1.0_methylation/SD_analysis/sd.{SAMPLE}transcripts.10kb_methAG.bed.gz"))
+  METH_CLUSTERS = fread("../t2t_globus_share/team-epigenetics/20200727_methylation/v1.0_methylation/t2t_chm13v1.0_SD_clustered_methylation.bed")
+  save(METH_SD_GENES, METH_CLUSTERS, file = glue("~/Desktop/Rdata/{SAMPLE}meth.data"))
+}else{
+  load(glue("~/Desktop/Rdata/{SAMPLE}meth.data"))
+}
+df=METH_CLUSTERS
 
 mycol = function(x){
   if(x["clust_meth"]=="meth"){
@@ -21,7 +29,7 @@ unmeth<-toGRanges(df[clust_meth!="meth"])
 
 
 b=as.ggplot(expression(
-  kp <- plotKaryotype(genome = GENOME, chromosomes =NOYM, cytobands = CYTO, plot.type = 6),
+  kp <- plotKaryotype(genome = GENOME, chromosomes =NOYM, cytobands = CYTO[CYTO$gieStain != "stalk"], plot.type = 6),
   kpPlotRegions(kp, data=meth, col=meth$color, border = NEWCOLOR),
   kpPlotRegions(kp, data=unmeth, col=unmeth$color, border = OLDCOLOR)
 ))+theme_nothing()
@@ -33,10 +41,16 @@ a= ggplot(data=df) +
   scale_fill_identity()+
   theme_cowplot()
 
-l=get_legend(ggplot(data=data.frame(Status=c("Centromere","Methylated","Unmethylated")))+geom_bar(aes(0,fill=Status)) + 
-               scale_fill_manual(values = c("Black",NEWCOLOR,OLDCOLOR))+ theme_cowplot() + theme(legend.position = "top", legend.justification = "center", legend.title = element_blank()))
+leg = c("Methylated","Unmethylated","Centromere")#,"Gap")#,"#647FA4"
+l=get_legend(
+  ggplot(
+    data=data.frame( Status=factor(leg, levels = leg) ) 
+    ) + 
+    geom_bar(aes(0,fill=Status)) + 
+    scale_fill_manual(values = c(NEWCOLOR,OLDCOLOR,"black"))+ theme_cowplot() + theme(legend.position = "top", legend.justification = "center", legend.title = element_blank()))
 
-meth_block_plot = plot_grid(a,b,l,ncol = 1, rel_heights = c(1.5,3,.25), rel_widths = c(.8,1,1)) 
+meth_block_plot = plot_grid(l,b,a, ncol = 1, rel_heights = c(0.25,3,1.5)) 
+meth_block_plot
 scale=1.25
 ggsave("supp/meth_locations.pdf", plot=meth_block_plot, height = 8*scale, width = 12*scale)
 
@@ -86,26 +100,32 @@ n_gene = gene.df %>%
 # main figure
 iso_meth_plot = ggplot(data=gene.ave.df, 
        aes(x=min, color=is_sd, fill=is_sd)) +
-  # add the data intervals
-  geom_ribbon(aes(ymin=bot, ymax=top), color = transparent("black",1), alpha=0.2, size=0)+
   # plot the methylation freq
-  geom_point(aes(y=med), fill="black", alpha=1, size=1) +
-  geom_line( aes(y=med), fill="black",alpha=1, size=.5)+
+  geom_point(aes(y=med), alpha=1, size=1,fill="black") +
+  geom_line( aes(y=med), alpha=1, size=.5)+
   # add the cpg dentity
   #geom_line(aes(y=med_cpg/max(gene.ave.df$med_cpg)), alpha=1, size=.1)+
   geom_text(data = n_gene,
-            aes(x=c(2-is_sd),
-                y=c(1),
+            aes(x=c(2-is_sd+.1),
+                y=c(0.05),
                 label=paste("# genes =",comma(n_genes))
-                ), 
+                ),
+            size=5,
+            show.legend = FALSE,
             hjust=0)+
-  geom_vline(xintercept=c(0,2), linetype=5 )+
-  scale_color_manual("SD gene", values = c(OLDCOLOR, NEWCOLOR))+
-  scale_fill_manual("SD gene", values = c(OLDCOLOR, NEWCOLOR))+
+  # add the data intervals
+  geom_ribbon(aes(ymin=bot, ymax=top), color = transparent("black",1), alpha=0.2, size=0)+
+  
+  geom_vline(xintercept=c(0,2), linetype=5)+
+  scale_color_manual("Median\nmethylation", values = c(OLDCOLOR, NEWCOLOR), labels=c("unique", "SD"))+
+  scale_fill_manual("Methylation\nquartiles (1-3)", values = c(OLDCOLOR, NEWCOLOR), labels=c("unique", "SD"))+
   scale_x_continuous(breaks = c("-10 kbp"=-1, "TSS"=0, "TTS"=2, "+10 kbp"=3)   )+
+  
+  guides(color=guide_legend(order=1))+
+  
   facet_wrap(vars(quartile), nrow = 3)+
   theme_cowplot() +
-  theme(legend.position = "bottom") +
+  theme(legend.position = "right", legend.justification = "center") +
   ylab("CpG methylation frequency")+
   xlab("Normalized position along gene body")+
   labs(subtitle="# Iso-Seq transcripts [min, max)"); iso_meth_plot
@@ -154,7 +174,7 @@ length_plot = ggplot(data = tmp.df,
   theme_minimal_vgrid()+
   theme(legend.position = "bottom"); length_plot
 
-ggsave("supp/meth_ave_num_cp.pdf", height = 12, width = 20, plot=plot_grid(iso_ncpg_plot, length_plot, nrow=2))
+ggsave(glue("supp/meth_ave_num_cp{SAMPLE}.pdf"), height = 12, width = 20, plot=plot_grid(iso_ncpg_plot, length_plot, nrow=2))
 
 sd_genes = unique(in.df[in.df$is_sd], by= c("chr","gene","quartile", "n_transcripts"))
 sd_genes$origin = gsub("_.*","",sd_genes$gene)
@@ -182,24 +202,34 @@ make_gene_plot <- function(chrs){
 #genes2=make_gene_plot(NOYM[10:23])
 #plot_grid(iso_meth_plot, genes,genes2, rel_heights = c(2,2,2), ncol=1)
 
-
+n_rolling_mean = 10
 gage = gene.df[grepl("TBC1D3([[:alpha:]])*$", gene.df$gene),] 
 gage = gene.df[grepl("NPIPA", gene.df$gene),] 
+#gage = gene.df[grepl("NBPF", gene.df$gene),] 
+
 gene_plot = ggplot(data=gage %>% arrange(n_transcripts))+
   geom_vline(xintercept=c(0,2), linetype=5 )+
-  geom_point(aes(x=min, y=methylated_frequency), size=0.5, alpha=0.5)+
-  geom_line(aes(x=min, y=rollmean(methylated_frequency, 5, na.pad=TRUE)), size=.5, color=NEWCOLOR)+
+  geom_point(aes(x=min, y=methylated_frequency, fill=""), size=0.5, alpha=1)+
+  scale_fill_manual("Data", values = "black")+
+  geom_line(aes(x=min, y=rollmean(methylated_frequency, n_rolling_mean, na.pad=TRUE, align = "center"), color=""), size=.5)+
+  scale_color_manual(glue("Rolling mean (n = {n_rolling_mean})"), values = NEWCOLOR)+
   facet_wrap(n_transcripts~gene, nrow=1)+
   scale_x_continuous(breaks = c("TSS"=0, "TTS"=2)   )+
   theme_cowplot() +
-  theme(legend.position = "none") +
-  ylab("CpG methylated frequency")+
+  theme(legend.position = "top") +
+  ylab("CpG methylation frequency")+
   xlab("Normalized position along gene body");gene_plot
 
 #meth_gene_plot = plot_grid(iso_meth_plot, gene_plot, rel_heights = c(2,2), ncol=1)
-meth_fig =plot_grid(plot_grid(meth_block_plot, iso_meth_plot, rel_widths = c(1,2), labels = c("a","b")), gene_plot, nrow=2, rel_heights = c(2,1), labels = c(NA,"c"))
+meth_fig = plot_grid(
+  plot_grid(
+    meth_block_plot, iso_meth_plot,
+    rel_widths = c(1,2), labels = c("a","b")
+    ), 
+  gene_plot, nrow=2, rel_heights = c(2,1), labels = c(NA,"c"))
+
 meth_fig
-ggsave("figures/meth_fig.pdf", plot=meth_fig, height = 12, width = 16)
+ggsave(glue("figures/meth_fig{SAMPLE}.pdf"), plot=meth_fig, height = 12, width = 16)
 
 
 
@@ -264,3 +294,36 @@ lines(x = rep(our_result, 2), y=c(0,1000000), col="red")
 p_value_for_unmth_enrichment = 1 - sum(our_result > permutation_results)/ length(permutation_results)
 p_value_for_unmth_enrichment
 
+
+
+#
+# motif ?
+#
+motif_df = METH_SD_GENES[group_sequence != "split-group" & dist > -.002 & dist < .002]
+motif_df$A = str_count(motif_df$group_sequence,"A")
+motif_df$T = str_count(motif_df$group_sequence,"T")
+motif_df$C = str_count(motif_df$group_sequence,"C")
+motif_df$G = str_count(motif_df$group_sequence,"G")
+dim(motif_df)
+y=motif_df %>% 
+  group_by(is_sd, quartile, dist) %>%
+  summarise(mat=list(matrix(unlist(str_split(group_sequence,"")), ncol = 11, byrow = TRUE)))# %>%
+
+z=y %>% 
+ rowwise() %>% mutate(A = list(
+   matrix(
+     c(colSums(mat=="A"), 
+     colSums(mat == "C"),
+     colSums(mat == "G"),
+     colSums(mat == "T")), 
+     ncol=11, byrow=T, dimnames = list(c("A","C","G","T"),seq(1,11)) )
+   )
+   ) 
+
+motif_df$m_len = sapply(motif_df$group_sequence,nchar)
+
+library(ggseqlogo)
+ggplot(data=z) + geom_logo(z$A)+theme_logo() + 
+  facet_grid(is_sd*dist~quartile) 
+
+       

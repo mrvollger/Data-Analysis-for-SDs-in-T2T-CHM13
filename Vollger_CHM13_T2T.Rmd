@@ -49,6 +49,9 @@ enriched_sds[enriched_sds$start < 1,]$start = 1
 names=unique(enriched_sds$chr)
 duplicons=duplicons[chr %in% names]
 
+#enriched_sds[enriched_sds$chr=="chr4" & enriched_sds$start>187e6, ] = c("chr4",195e6,205e6,10e6,"*")
+#enriched_sds
+
 zoom_rgns  = data.table(enriched_sds %>% 
   group_by(chr) %>% 
   mutate(Mbp=(end-start)/10^6, name=paste0(chr,":",round(start/10^6),"-",round(end/10^6), "")) )
@@ -82,8 +85,6 @@ probe_l = ggplot(data=onedup)+
                     panel.border = element_rect(colour = "black", fill=NA, size=1),
                     plot.title = element_text(hjust = 0.5))+
   ylab("Probe ID, color, and duplicons")
-
-probe_l
 ggsave("supp/dup_prob_l.pdf", height = 2, width = 20, plot=probe_l)
 
 #
@@ -101,19 +102,32 @@ Ns.z = zoom(NS, zoom_rgns)
 # make a karyoplot with the zoom rgns
 #
 small = as.ggplot(expression(
-  kp<- plotKaryotype(genome=GENOME,
+  pt <- 5,
+  pp<-getDefaultPlotParams(plot.type = pt), 
+  pp$ideogramheight <- 25,
+  pp$ideogramlateralmargin <- 0.01,
+  pp$data2height <- 25,
+  pp$topmargin<-50,
+  pp$bottommargin<-0,
+  pp$leftmargin<-0,
+  pp$rightmargin<-0,
+  kp<- plotKaryotype(genome=GENOME, plot.params = pp,
                      chromosomes = unique(zoom_rgns$chr), 
-                     plot.type = 6, cytobands = CYTO, cex=0.75),
-  kpPlotRegions(kp,data=toGRanges(zoom_rgns), col="green", clipping = T,data.panel = "ideogram", border = NA)
+                     plot.type = pt, cytobands = CYTOFULL, cex=1), #color.schema="only.centromeres"),
+  kpPlotRegions(kp,data=toGRanges(zoom_rgns), col=transparent("lightgreen",0.1), clipping = T, data.panel = 1, border = darker("lightgreen"))
   )
-)
+); small
 #
 # make a little legend
 # 
 flat_dup_leg = as.ggplot(expression(
+  #par(bg="lightgray"),
+  #par(mar = c(0,0,0,0)),
   min<-1.25e6,
   plot.params <- getDefaultPlotParams(plot.type = 1),
-  plot.params$ideogramheight<-25,
+  plot.params$ideogramheight<-50,
+  plot.params$topmargin <- 1 ,
+  plot.params$bottommargin <- 2 ,
   kp<-plotKaryotype(genome=data.frame(chr=zoom_rgns$name, length=zoom_rgns$end-zoom_rgns$start), 
                     plot.params = plot.params,
                     zoom=toGRanges(data.frame(chr = "chr14:0-14", start=min, end=2.3e6))),
@@ -122,23 +136,29 @@ flat_dup_leg = as.ggplot(expression(
   kpRect(kp, chr=duplicons.z$zname, x0 = duplicons.z$start, x1=duplicons.z$end, y0=0, y1=1, r0=0, r1=.4,  border=NA, col=duplicons.z$hex ),
   kpPlotMarkers(kp, chr=probes.z$zname, x=(probes.z$start + probes.z$end)/2, 
                 labels = probes.z$label, text.orientation = "horizontal", 
-                r0=0.5, r1=.8, max.iter = 1000, cex=1, ignore.chromosome.ends = TRUE, clipping = FALSE),
+                r0=0.5, r1=1, max.iter = 1000, cex=1, ignore.chromosome.ends = TRUE),
   kpRect(kp, chr=sedef_flat.z$zname, x0 = sedef_flat.z$start, x1=sedef_flat.z$end, y0=0, y1=1,  border=NA, col=NEWCOLOR, data.panel = "ideogram"),
   kpRect(kp, chr=rm.z$zname, x0 = rm.z$start, x1=rm.z$end, y0=0.0, y1=1,  border=NA, col=OLDCOLOR, data.panel = "ideogram"),
   kpRect(kp, chr=Ns.z$zname, x0 = Ns.z$start, x1=Ns.z$end, y0=0.0, y1=1,  border=NA, col="black", data.panel = "ideogram"),
-  kpText(kp,chr="chr14:0-14", x = c(min,min,min,min+1e5, min+3e5)-1e5, 
-         y=c(0.8,0.65, 0.35, 0.35,0.35),
+  kpText(kp,chr="chr14:0-14", x = c(min,min,min,min+1e5, min+3e5)-1.5e5, 
+         y=c(1,0.75, 0.35, 0.35,0.35)-.1,
          labels = c("Probe ID", "Duplicons", "SDs,", "Satellites,","Gaps"),
          col=c("black","black",NEWCOLOR, OLDCOLOR, "black"),
-         r0=-1, r1=1, adj=0, cex = 1)
-)); 
-flat_dup_leg
+         r0=-1, r1=1, adj=0, cex = 1),
+  #rect(-.3,-.1,1.2,.8,lty = "solid",lwd=2)
+  #rect(par("usr")[1],par("usr")[3],par("usr")[2],par("usr")[4],col = "gray")
+  box(which = "outer", lty = "solid",lwd=3)
+)); flat_dup_leg
 #
 # karyolpot showing the duplicons and probes
 #
+probes.z$kcol = "#000000"
+probes.z$kcol[probes.z$label %in% c("G6","K20")] = NEWCOLOR
 flat_duplicon_1=as.ggplot(expression(
   plot.params <- getDefaultPlotParams(plot.type = 1),
-  plot.params$ideogramheight<-25,
+  plot.params$ideogramheight<-50,
+  plot.params$topmargin <-0,
+  plot.params$bottommargin <-0,
   kp<-plotKaryotype(genome=data.frame(chr=zoom_rgns$name, length=zoom_rgns$end-zoom_rgns$start), plot.params = plot.params),
   #kpAddMainTitle(kp, main="Location of FISH probes on novel acrocentric duplications"),
   #kpAddBaseNumbers(kp),
@@ -149,8 +169,9 @@ flat_duplicon_1=as.ggplot(expression(
   #              r0=0.5, r1=0.7, 
   #              col=probes.z$color, border=darker(probes.z$color, 50),
   #              avoid.overlapping = FALSE),
-  kpPlotMarkers(kp, chr=probes.z$zname, x=(probes.z$start + probes.z$end)/2, 
-                labels = probes.z$label, text.orientation = "horizontal", 
+  kpPlotMarkers(kp, chr=probes.z$zname, x=(probes.z$start + probes.z$end)/2,
+                label.color=probes.z$kcol, line.color = probes.z$kcol,
+                labels = probes.z$label, text.orientation = "horizontal", ignore.chromosome.ends = TRUE,
                 r0=0.5, r1=.8, max.iter = 1000),
                 #line.color = probes.z$color),
   kpRect(kp, chr=sedef_flat.z$zname, x0 = sedef_flat.z$start, x1=sedef_flat.z$end, y0=0, y1=1,  border=NA, col=NEWCOLOR, data.panel = "ideogram"),
@@ -159,8 +180,8 @@ flat_duplicon_1=as.ggplot(expression(
   )) +
   #ggtitle("Assembly SD predicted FISH locations for fosmid probes") + 
   theme_map() + theme(plot.title = element_text(hjust=0.5, face = "bold") )
-flat_duplicon = plot_grid(small, flat_duplicon_1, rel_widths =c(1,4))
-
+flat_duplicon = plot_grid(small, flat_duplicon_1, rel_heights = c(1,4), nrow=2)
+flat_duplicon
 probe_plot = plot_grid(flat_duplicon, probe_l, nrow=2, rel_heights = c(8,1)) #labs(title = "Location of FISH probes on novel acrocentric duplications")
 
 ggsave("supp/dup_ideo_flat.pdf", height = length(unique(duplicons.z$zname))*.8, width = 20, plot=probe_plot)
@@ -213,6 +234,24 @@ probe_tbl= ggplot(data=results) +
   panel_border()
 ggsave("supp/dup_probe_tbl.pdf", height = 10, width = 16, plot = probe_tbl)
 
+fix_het =results%>% 
+  filter(Sample!="Assembly SD" & Sample!="Assembly low ID") %>%
+  group_by(label, loc, chr) %>%
+  summarise(n=length(unique(Sample))) %>%
+  mutate(fixed=n==max(n))
+
+#fix_het[fix_het$chr == "chrY",]$fixed=True
+
+fixed_dups_p = ggplot(data=fix_het, aes(x=fixed, fill=fixed))+
+  geom_bar() + 
+  geom_text(stat='count', aes(label=..count..), vjust=-0.1, size=4)+
+  scale_fill_manual("Fixed duplicaton", values = c(NEWCOLOR, OLDCOLOR))+
+  xlab("")+
+  theme_cowplot()+
+  theme(legend.position = "bottom", legend.justification = "center")
+#fixed_dups_p
+ggsave("supp/dup_fixed_dups.pdf", height = 10, width = 16, plot = probe_tbl)
+
 #
 #
 #
@@ -220,25 +259,30 @@ ggsave("supp/dup_probe_tbl.pdf", height = 10, width = 16, plot = probe_tbl)
 g_fish_imgs = ggdraw() + draw_image("FISH/FES_FISHRESULTS_GM24385_LM new.png") + theme_map() + ggtitle("\nFosmid probe FISH signals for CHM13") + theme(plot.title = element_text(hjust=0.5))
 
 
-x=ggdraw()+draw_image("FISH/FES_FISHRESULTS_GM24385_LM new.png", x=0.1, y=0.1, height = .1, width = 1)
+#x=ggdraw()+draw_image("FISH/FES_FISHRESULTS_GM24385_LM new.png", x=0.1, y=0.1, height = .1, width = 1)
+x=ggdraw()+draw_image("FISH/chm13_finaltable_14012021_copy_withlayers copy 2.png")#, x=0.1, y=0.1, height = .1, width = 1)
 
-flat_duplicon_lab = ggdraw() + draw_plot(flat_duplicon) + draw_plot(flat_dup_leg, x = .7, y=.3, height = .4,width = .3)
+flat_duplicon=plot_grid(small + theme(plot.margin = unit(c(0, 0, 0, 0), "cm")),
+                        flat_duplicon_1,
+                        rel_heights = c(1,6), nrow=2)
+flat_duplicon_lab = ggdraw() + draw_plot(flat_duplicon) + draw_plot(flat_dup_leg, x = .65, y=.3, height = .2,width = .3)
+
+chr1_qcen=ggdraw()+draw_image("figures/chr1_qcen.png")#, x=0.1, y=0.1, height = .1, width = 1)
 
 
 figure = plot_grid(flat_duplicon_lab,
-                   plot_grid(
-                            g_fish_imgs,
+                   x,
+                   plot_grid(chr1_qcen,
                             NULL,
-                             labels = c("b","c"),
-                             rel_widths = c(2,3)
-                             ),
-                  labels = c("a",NA), nrow=2, rel_heights = c(1,1))
+                            labels = c("c","d"),
+                            rel_widths = c(4,1)),
+                  labels = c("a","b",NA), nrow=3, rel_heights = c(2,1,1.5))
            
-#figure
 scale = 1.5
-ggsave("figures/Duplicons.pdf", plot=figure , width=12*scale, height=10*scale) 
-ggsave("figures/Duplicons.png", plot=figure , width=12*scale, height=10*scale, dpi = 300) 
+ggsave("supp/Duplicons.pdf", plot=figure , width=12*scale, height=12*scale) 
+ggsave("figures/Duplicons.png", plot=figure , width=12*scale, height=6*scale, dpi = 300) 
 
+figure
 
 ```
 
@@ -262,6 +306,7 @@ intra.new <- overlap_either(intra, NEW)
 intra$color[intra.new] = NEWCOLOR
 #intra$color[intra.new & intra$fracMatch >= 0.95 & intra$alnB >= 10000] = "#ff0000"
 intra <- intra[order(-color)]
+#intra = intra[1:100]
 #print(intra %>% group_by(color) %>% summarise(length(chr)))
 
 #
@@ -281,17 +326,24 @@ gi.old <- setdiff(GenomicRanges::reduce(gi), GenomicRanges::reduce(gi.new))
 #
 #
 Intra=as.ggplot(expression(
-  kp <- plotKaryotype(genome = GENOME, cytobands = CYTO, chromosomes = NOM),
+  pp<-getDefaultPlotParams(plot.type = 1),
+  pp$ideogramheight<-25,
+  kp <- plotKaryotype(genome = GENOME, cytobands = CYTOFULL, chromosomes = NOM, plot.params = pp),
   #kpPlotRegions(kp, data=GenomicRanges::reduce(gi.new), col=transparent("orange", 0.25), data.panel = "ideogram", r0=0.0, r1=1, border = NA),
   #kpPlotRegions(kp, data=gi.old, col=transparent("orange", 0.25), data.panel = "ideogram", r0=0, r1=1, border = NA),
-  kpPlotRegions(kp, data=GenomicRanges::reduce(gi), col=transparent("orange", 0.25), data.panel = "ideogram", r0=0, r1=1, border = NA),
+  kpPlotRegions(kp, data=GenomicRanges::reduce(gi), col=transparent("orange", 0.25), r0=-.05, r1=0.05, border = darker("orange")),
   kpPlotLinks(kp, 
-              data=toGRanges(data.frame(chr=intra$chr,start=intra$start,intra$end)), data2=toGRanges(data.frame(chr=intra$chr2,start=intra$start2,intra$end2)), 
-              col=intra$color, border = NA),
+              data=toGRanges(data.frame(chr=intra$chr,start=intra$start,intra$end)),
+              data2=toGRanges(data.frame(chr=intra$chr2,start=intra$start2,intra$end2)), 
+              col=intra$color, border = NA, r0=0.1, r1=1),
   kpAddCytobands(kp)
   #pAddBaseNumbers(kp)
 ))
-ggsave("supp/intra_sd_ideo.pdf", width = 12, height = 8, plot=Intra)
+s=1.2
+ggsave("supp/intra_sd_ideo.pdf", width = 16*3/5*s, height = 12*s, plot=Intra)
+ggsave("supp/intra_sd_ideo.png", width = 16*3/5*s, height = 12*s, plot=Intra, dpi = 600)
+g_intra = ggdraw() + draw_image("supp/intra_sd_ideo.png")
+
 ```
 
 ```{r, Figure1 inter, echo=FALSE}
@@ -301,8 +353,8 @@ ggsave("supp/intra_sd_ideo.pdf", width = 12, height = 8, plot=Intra)
 
 Inter <- function(){
   # data
-  sedef.inter <- SEDEF[chr != chr2 & original & chr %in% NOM & chr2 %in% NOM]
-  cyto.df <- data.frame(CYTO)[, c("seqnames","start","end","seqnames","gieStain")]
+  sedef.inter <- SEDEF[chr != chr2 & original & chr %in% NOM & chr2 %in% NOM]#[1:1000]
+  cyto.df <- data.frame(CYTOFULL)[, c("seqnames","start","end","seqnames","gieStain")]
   cyto.df = cyto.df[cyto.df$seqnames %in% NOM,]
   cyto.df$seqnames = factor(cyto.df$seqnames, levels =  c(CHRS[!CHRS %in% ACHRO ], ACHRO))
   cyto.df  = cyto.df[order(cyto.df$gieStain, cyto.df$seqnames),]
@@ -322,13 +374,14 @@ Inter <- function(){
   circos.genomicLink(sedef.inter[,c("chr","start", "end")],
                      sedef.inter[,c("chr2","start2", "end2")],
                      border=NA, col=sedef.inter$color)
-};
+}; #Inter()
 png("supp/inter_sd_circo.png", height = 6, width = 6, units="in", res=900, bg = "transparent")
 Inter()
 dev.off()
 pdf("supp/inter_sd_circo.pdf", height = 6, width = 6)
 Inter()
 dev.off()
+g_inter = ggdraw() + draw_image("supp/inter_sd_circo.png")
 
 ```
 
@@ -392,7 +445,8 @@ by_all = ggplot(data=merged_sds %>%
   theme_cowplot() +
   scale_y_continuous(labels = comma)+
   scale_fill_manual(values=COLORS)+
-  theme(legend.position = "none", axis.text.x = element_text(angle = -45, hjust = 0.1, vjust=0.5))+
+  theme(legend.position = "top", legend.justification = "center", axis.text.x = element_text(angle = -45, hjust = 0.1, vjust=0.5))+
+  guides(fill=guide_legend(ncol=3))+
   ylab("Mbp of non-redundant SD") + xlab(""); by_all
 by_all
 
@@ -439,7 +493,7 @@ p_duplicons = ggplot(data = dups[1:n],
                      aes(x=label, weight=count/1000, fill=Assembly)) + 
   geom_bar(position="dodge") +
   scale_fill_manual(values=COLORS)+
-  ylab("Total duplicon content (kbp)") +
+  ylab("Total duplicon\ncontent (kbp)") +
   xlab("Duplicons associated with genes") +
   #scale_y_discrete(position = "right")+
   #scale_x_reverse(label=comma)+
@@ -460,45 +514,89 @@ ggsave("supp/dup_hist.pdf", height = 8, width = 12, plot=p_duplicons)
 #
 # make the legend
 #
-tmp=c("SD shared with GRCh38", 
-      "New or structurally variable SD in T2T CHM13",
-      "Region of genomic instability",
-      "Centromere / HSAT array",
-      "Gap")
+tmp=c("New or structurally variable SD in T2T CHM13",
+      "SD shared with GRCh38",
+      "Predicted genomic instability")#,
+      #"Centromere / HSAT array",
+      #"Gap")
 f1_legend = get_legend(
   ggplot(data=data.frame(SDs=factor(tmp, levels = tmp))) +
   geom_bar(aes(1,fill=SDs)) +
   scale_fill_manual(values=c(NEWCOLOR,
                              OLDCOLOR,
-                             transparent("orange", 0.25),
-                             "black",
-                             CYTO_COLORS["stalk"]
+                             transparent("orange", 0.25)
+                             #"black",
+                             #CYTO_COLORS["stalk"]
                              )
                     ) +
   theme_cowplot() + theme(legend.position = "bottom", 
                           legend.direction = "vertical",
                           legend.title = element_blank(),
                           legend.text.align = 0,
-                          legend.justification="center")
-  )
+                          legend.justification="center")+
+    guides(fill = guide_legend(ncol=3, 
+                               #label.position = "top",
+                               keywidth = unit(0.5,"cm"),
+                               keyheight = unit(0.5,"cm")
+                               )
+           )
+  ); ggdraw(f1_legend)
 #ggdraw(f1_legend)
+
+#ggdraw(get_legend(by_all))
 
 #
 #
 # make the figure
 #
 #
-g_inter = ggdraw() + draw_image("supp/inter_sd_circo.png")
+right = plot_grid(g_inter, 
+                  get_legend(by_all),
+                  sheall$identity,
+                  p_duplicons,
+                  labels = c("b","","c","d"),
+                  nrow=4,
+                  axis="r",
+                  #scale= c(1,1,2,2),
+                  rel_heights = c(3,.1,1,1)); 
 
-ideo = plot_grid(Intra, g_inter,  labels = c("a","b"), rel_widths = c(6,5), ncol=2, scale = c(1,1.1)); 
-#p = plot_grid(ideo, She, nrow=2)
-f1 = plot_grid(ggdraw() + draw_plot(ideo) + draw_plot(f1_legend, 1/3, 1/8, .3, .3), 
-               plot_grid(by_all, sheall$identity, p_duplicons, labels = c("c", "d", "e"), ncol=3), 
+ideo = plot_grid(Intra, g_inter,
+                 labels = c("a","b"),
+                 rel_widths = c(3,2),
+                 ncol=2,
+                 scale = c(1,1.1)); 
+
+bot = plot_grid(get_legend(by_all), 
+                plot_grid(sheall$identity, p_duplicons, labels = c("c", "d"),ncol=2), 
+                rel_heights = c(1,10), nrow=2); bot 
+
+f1 = plot_grid(ggdraw() + draw_plot(ideo) + draw_plot(f1_legend, .2, .2, .6, .3,  scale=2), 
+               bot,
                nrow=2, 
                rel_heights = c(2,1))
-  
+
+intra_l = plot_grid(f1_legend, Intra, ncol=1, rel_heights = c(1,24));
+
+ftall = plot_grid(intra_l,
+                  right,
+                  labels = c("a",NA),
+                  rel_widths = c(3,2))
+
 s=1.2
-ggsave("figures/Figure1.pdf", plot=f1, height = 12*s, width = 16*s)
+
+ggsave("supp/intra_sd_ideo_legend.pdf", width = 16*3/5*s, height = 1/24*12*s, plot=f1_legend)
+ggsave("figures/Figure1.simple.pdf", plot=ftall, height = 12*s, width = 16*s)
+
+ggsave("supp/right_figure_1.pdf", width = 16*2.5/5*s, height = 12*s*2/5, plot=plot_grid(
+                  get_legend(by_all),
+                  sheall$identity,
+                  p_duplicons,
+                  rel_heights = c(.2,1,1),
+                  #labels = c("","c","d"),
+                  nrow=3)
+)
+
+
 #ggsave("PairWise.pdf", plot=C1, height=8, width=8)
 #ggsave("Intra.pdf", plot=Intra, height=6, width=10)
 #ggsave("FigureS1.pdf", plot=p, height = 16, width = 16)
@@ -514,6 +612,7 @@ ggsave("figures/Figure1.pdf", plot=f1, height = 12*s, width = 16*s)
 # 
 source("wssd_sub_regions.R")
 rdg_colors = colors
+rdg_colors = c(rdg_colors, `TRUE`="red", `FALSE`="cyan") 
 source("Divergence.R")
 div_ecdf=p1
 #
@@ -521,34 +620,73 @@ div_ecdf=p1
 #
 bp_hist
 ecdf_cn_plot
-rgn.df.with.genes = add_genes(rgn.df)
+rgn.df.with.genes = add_genes(rgn.df, all=TRUE)
+rgn.df.with.genes$gene= rgn.df.with.genes$V4
 sort((rgn.df.with.genes$gene))
-genes = c("NBPF15", "KCNJ18_2","SMN2", "AMY1A_2", "GRPIN2")
+unique(sort((rgn.df.with.genes$gene)))
+
+genes = c("NBPF15", "KCNJ18_2","SMN2", "AMY1A_2", "GRPIN2","MUC3A")
+genes = c("NBPF15", "GPRIN2","SMN2",
+          "GAGE12E", "NPIPB4","TBC1D3",
+          "AMY1A_2","FRG2C_2", "LPA")
+
 keep = grepl(paste(genes,collapse = "|"), rgn.df.with.genes$gene)
 #clear_winner = c("chr9_3_12_cn_10", "chr1_5_2_cn_10", "chr13_1_79_cn_20");
-clear_winner = unique(rgn.df.with.genes$name[keep])
-gene_rgn = unique(rgn.df.with.genes[keep,c("name","gene")], by="gene", fromLast=T);gene_rgn
-winners = merge(rdg[name %in%  clear_winner], gene_rgn , by="name")
-winners$label = paste(gsub("_.*", "",winners$gene), 
+#clear_winner = c(unique(rgn.df.with.genes$name[keep]),"chr6_161865995_161994506")
+gene_rgn = unique(rgn.df.with.genes[keep,c("name","gene")], by="gene", fromLast=F);gene_rgn
+gene_rgn = unique(rgn.df.with.genes[keep,c("name","gene","median")][order(median)], by="gene", fromLast=T) ; gene_rgn
+#gene_rgn = rbind(gene_rgn, data.table(name="chr6_161865995_161994506", gene="LPA",median=30)); gene_rgn
+
+winners = merge(rdg, gene_rgn , by="name")
+winners$genef = gsub("_.*", "",winners$gene)
+make_gene_fam = c("GPRIN2"="GPRIN2",  "NPIPB4"="NPIP", "TBC1D3K"="TBC1D3", "NBPF15"="NBPF", "FRG2C"="FRG2C", "LPA"="LPA","SMN2"="SMN", "AMY1A"="AMY","GAGE12E"="GAGE")
+winners$genef = make_gene_fam[winners$genef]
+winners$label = paste(winners$genef, 
                       paste(paste(winners$chr, comma(winners$start), sep=":"), comma(winners$end), sep="-"),
                       sep="\n")
-rgd_examples_plot = ggplot(data=winners, aes(x=CN))+
-  geom_density(aes(fill=status), alpha=0.5)+
-  geom_count(aes(y=0), shape=21, fill="cyan", alpha=1)+
-  #geom_jitter(aes(y=0), height =0.05, width=0)+
-  geom_vline(aes(xintercept=hg38, color="GRCh38"), size=1, alpha=1, linetype="dashed")+
-  geom_vline(aes(xintercept=chm13, color="CHM13"), size=1, alpha=1, linetype="dashed")+
-  scale_color_manual(values = c(NEWCOLOR, OLDCOLOR))+
-  scale_fill_manual(values=rdg_colors)+
-  facet_wrap(vars(label), ncol = length(genes), scales = "free")+
-  theme_cowplot()+#theme(legend.position = "bottom")+
-  guides(fill=guide_legend(title="Better reference"),
-         color=guide_legend(title="Reference CN"),
-         size=guide_legend(title="# SGDP samples"))+
-  xlab("Diploid copy number")+
-  ylab("SGDP copy number density");rgd_examples_plot
-  #geom_rug()
+# correct to gene family names 
 
+winners=winners[order(status)]
+winners$label = factor(winners$label, levels = unique(winners$label))
+winners$African = winners$super_pop=="AFR"
+winners = winners %>%
+  group_by(label) %>%
+  mutate(median = median(CN))
+
+rgd_examples_plot = ggplot(data=winners, aes(x=CN))+
+ 
+  geom_density(aes(x=CN, ..scaled.., fill=status), alpha=0.5)+
+    
+  geom_vline(data = . %>% filter(T), aes(xintercept=hg38-.01, color="GRCh38"), size=1, alpha=1, linetype="dashed")+
+  geom_vline(data = . %>% filter(T), aes(xintercept=chm13+.01, color="CHM13"), size=1, alpha=1, linetype="dashed")+
+  #geom_vline(data = . %>% filter(hg38 == chm13), aes(xintercept=chm13, color="Equal CN"), size=1, alpha=1, linetype="dashed")+
+  
+  facet_wrap(vars(label), nrow = 3, scales = "free")+#, labeller=label_parsed)+
+  
+  scale_fill_manual("Better reference", values=rdg_colors)+
+  scale_color_manual("Reference CN", values=rdg_colors)+
+  coord_cartesian(clip = 'off') +
+  
+  theme_cowplot() +
+  theme(legend.position = "left", strip.text = element_text(face = "italic"))+
+  xlab("Diploid copy number")+
+  ylab("SGDP copy number density");
+
+rgd_examples_plot = rgd_examples_plot + 
+  new_scale_fill()+
+  geom_count(data = . %>% filter(!African), aes(y=-0.25, x=CN, fill="Non African"), alpha=0.5, shape=21)+
+  geom_count(data = . %>% filter(African), aes(y=-0.05, x=CN,fill="African"), alpha=0.75, shape=21)+
+  scale_fill_manual("",values=c("Non African"="blue","African"="orange"))+ 
+  scale_size_area("# SGDP samples", max_size = 15) + 
+  scale_y_continuous(breaks = c(0,.5,1), limits = c(-.4,1))+
+  guides(size = guide_legend(order=2),
+         fill = guide_legend(override.aes = list(size=10), 
+                             order = 1, ncol=2,
+                             label.position = "top"),
+         color = guide_legend(order=10)
+         )
+
+rgd_examples_plot
 
 figure3 = plot_grid(
   plot_grid(div_ecdf, bp_hist, ecdf_cn_plot,nrow = 1, labels = "auto"),
@@ -556,6 +694,7 @@ figure3 = plot_grid(
   nrow=2
   )
 ggsave("figures/Figure3.pdf", height = 12, width = 16, plot=figure3)
+
 ```
 
 
@@ -680,7 +819,7 @@ dev.off()
 ```
 
 
-```{r, fig.show='hide'}
+```{r fig.show='hide', message=TRUE, warning=TRUE, paged.print=FALSE}
 
 chm <- readbed("../lastz_chains_from_mark/instability.sds.bed", "CHM13_T2T")
 hg <- readbed("../lastz_chains_from_mark/instability.sds.hg38.bed", "CHM13_T2T")
