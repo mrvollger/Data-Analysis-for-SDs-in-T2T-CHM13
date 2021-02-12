@@ -22,11 +22,24 @@ if(F){
   maxcn=10
   pname="high"
 }
-tmp3=fread("../wssd/rdg_mitchell/rdg_archaics/NEW_WINDOWS/NEW_WINDOWS.archaics.combined.wssd.GMM.bed");
-tmp4=fread("../wssd/rdg_mitchell/rdg_hgdp/NEW_WINDOWS/NEW_WINDOWS.hgdp.combined.wssd.GMM.bed")
-tmp5=fread("../wssd/rdg_mitchell/rdg_kmer_ref/NEW_WINDOWS/NEW_WINDOWS.kmer_ref.combined.wssd.GMM.bed")
-tmp6=fread("../wssd/rdg_mitchell/rdg_sd_freeze/NEW_WINDOWS/NEW_WINDOWS.sd_freeze.combined.wssd.GMM.bed")
-tmp=merge(merge(merge(tmp4,tmp5),tmp6),tmp3)
+v = ""
+#tmp3=fread("../wssd/rdg_mitchell/rdg_all/TRIMMED_WINDOWS/archaics/TRIMMED_WINDOWS_archaics_wssd.tab");
+#tmp4=fread("../wssd/rdg_mitchell/rdg_all/NEW_WINDOWS/NEW_WINDOWS.hgdp.combined.wssd.bed")
+#tmp5=fread("../wssd/rdg_mitchell/rdg_all/NEW_WINDOWS/NEW_WINDOWS.kmer_ref.combined.wssd.bed")
+#tmp6=fread("../wssd/rdg_mitchell/rdg_all/NEW_WINDOWS/NEW_WINDOWS.sd_freeze.combined.wssd.bed")
+#tmp=merge(merge(merge(tmp4,tmp5),tmp6),tmp3)
+#tmp = fread("../wssd/rdg_mitchell/rdg_all/TRIMMED_WINDOWS/archaics/")
+
+tmp = NA
+regions = "TRIMMED_WINDOWS"
+GMM=""
+for(pop in c("archaics", "hgdp", "kmer_ref", "t2t_dp", "t2t_dp_nhp", "nhp")){
+  t2 = fread(glue("../wssd/rdg_mitchell/rdg_all/{regions}/{regions}.{pop}.wssd{GMM}.genotypes.tab"))
+  tmp  = merge(tmp, t2)
+}
+#tmp = fread(glue("../wssd/rdg_mitchell/rdg_all/TRIMMED_WINDOWS/TRIMMED_WINDOWS.t2t_dp.combined.wssd.GMM.bed"))
+
+#tmp = tmp[overlaps(tmp, NEW)]
 
 #tmp7=fread("../better_wssd_region_caller/CHM13.changepoint.filtered.bed")
 #tmp7=fread("../better_wssd_region_caller/mrv_try_wssd/ALL_RDG_CP/ALL_RDG_CP.archaics.combined.wssd.GMM.bed")
@@ -41,12 +54,15 @@ cols =  which(!colnames(tmp) %in% ignore) #colnames(tmp)[!colnames(tmp) %in% ign
 
 popinfo = fread("../wssd/v1.0/rdg_20kb/hgdp_manifest.txt")
 rdg = data.table(pivot_longer(tmp, cols=cols, names_to = "Samples", values_to = "CN") %>% 
+                   mutate(chm13=round(chm13), hg38=round(hg38), CN=round(CN)) %>%
                    drop_na() %>%
                    filter_if(~is.numeric(.), all_vars(!is.infinite(.))) %>%
                    mutate(chm13_diff = (CN-chm13), hg38_diff=(CN-hg38)) %>% 
                    mutate(diff = case_when(abs(chm13_diff) <= abs(hg38_diff) ~ chm13_diff, abs(chm13_diff) > abs(hg38_diff) ~ hg38_diff), 
                           winner = case_when(abs(chm13_diff)==abs(hg38_diff) ~ "Equal CN", abs(chm13_diff) < abs(hg38_diff) ~ "CHM13",  abs(chm13_diff) > abs(hg38_diff) ~ "GRCh38"))
                    )
+
+
 # remove entries that overlap with Ns 
 has_Ns = queryHits(findOverlaps(toGRanges(rdg[,c("chr","start","end","name")]), toGRanges(NS)))
 rdg = rdg[-has_Ns,]
@@ -96,6 +112,13 @@ pop_location$lat = as.numeric(pop_location$lat); pop_location$long = as.numeric(
 rdg$sample = rdg$Samples
 rdg=merge(rdg, popinfo, by="sample")
 rdg= data.table( rdg %>% merge(pop_location, by="super_pop") %>% group_by(super_pop)%>% mutate(n_super_pop = length(unique(sample)))) 
+
+
+
+
+# importatn TBC1D3
+#ggplot(data=rdg %>% filter(name == "chr17_38963566_38978236"))+geom_count(aes(x=CN, y=1))
+
 
 
 # merge with region info
@@ -262,18 +285,18 @@ ggsave("supp/wssd_bp_hist_std.pdf", width = 8, height = 8, plot=bp_hist_std)
 #
 # Final figure
 #
-fig_top = plot_grid(
-  plot_grid(p4, ideo, rel_heights = c(.4,1), nrow=2),
-  plot_grid(p3, p,    rel_heights = c(.4,1), nrow=2),
+fig_top = cowplot::plot_grid(
+  cowplot::plot_grid(p4, ideo, rel_heights = c(.4,1), nrow=2),
+  cowplot::plot_grid(p3, p,    rel_heights = c(.4,1), nrow=2),
   rel_widths = c(1,1), labels = c("a","b"))
-fig_bot = plot_grid(bp_hist, ecdf_cn_plot, rel_widths = c(1,2), labels =c("c","d"))
-fig = plot_grid(fig_top, fig_bot, ncol=1,labels = c(NA,NA), rel_heights = c(4,3))
+fig_bot = cowplot::plot_grid(bp_hist, ecdf_cn_plot, rel_widths = c(1,2), labels =c("c","d"))
+fig = cowplot::plot_grid(fig_top, fig_bot, ncol=1,labels = c(NA,NA), rel_heights = c(4,3))
 
 # simplified figure
-fig = plot_grid(plot_grid(bp_hist, bp_hist_std, labels=c("a","b")), ecdf_cn_plot, rel_heights = c(6,5), ncol = 1, labels =c(NA,"c"))
+fig = cowplot::plot_grid(cowplot::plot_grid(bp_hist, bp_hist_std, labels=c("a","b")), ecdf_cn_plot, rel_heights = c(6,5), ncol = 1, labels =c(NA,"c"))
 
 
 scale=0.8
-ggsave(glue("figures/wssd_{pname}.pdf"), plot=fig, height = 16*scale, width = 16*scale)
-ggsave(glue("figures/wssd_{pname}.png"), plot=fig, height = 16*scale, width = 16*scale, dpi=300)
+ggsave(glue("supp/wssd_{pname}.pdf"), plot=fig, height = 16*scale, width = 16*scale)
+ggsave(glue("supp/wssd_{pname}.png"), plot=fig, height = 16*scale, width = 16*scale, dpi=300)
 fig

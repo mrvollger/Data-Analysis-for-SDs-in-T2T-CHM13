@@ -33,6 +33,7 @@ library(magick)
 library(zoo)
 library(ggforce)
 library(ggridges)
+library(xlsx)
 if(! require("ggnewscale")) install.packages("ggnewscale")
 
 #setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
@@ -53,6 +54,7 @@ ACHRO <<- paste0("chr",c(13,14,15,21,22))
 FAI <<- fread(glue("../assemblies/{V}.fasta.fai"),col.names = c("chr","chrlen","x","y","z"))
 FAI$chr = factor(FAI$chr, levels =  c(CHRS, unique(FAI$chr[which(!FAI$chr %in% CHRS)]) ) , ordered = TRUE)
 
+
 readbed = function(f, tag, rm=F, chrfilt=FALSE){
   df = fread(glue(f)); df
   colnames(df)[1:3]=c("chr","start","end")
@@ -62,6 +64,7 @@ readbed = function(f, tag, rm=F, chrfilt=FALSE){
   }
   if("chr2" %in% colnames(df)){
     df$intra=df$chr == df$chr2
+    df$chr2 = factor(df$chr2, levels =  c(CHRS, unique(df$chr2[which(!df$chr2 %in% CHRS)]) ) , ordered = TRUE)
   }
   if(chrfilt){
     df = df[chr %in% CHRS & chr2 %in% CHRS]
@@ -86,13 +89,20 @@ grtodf = function(gr){
 # util funcations
 #
 add_genes=function(df, all=FALSE){
+  df=rgn.df; all=TRUE
   #df=rdg[,c(4,5,6,1)]
   #x = do_bedtools_intersect(toGRanges(df[,1:4]), toGRanges(GENES[,1:4]), loj = T); nrow(df)
   tmp=GENES
   if(all){
+    # fine ones with ORF
+    ORF = do.call(paste0, ALL_GENES[,1:12]) %in% do.call(paste0, GENES[,1:12])
+    sum(ORF)
     tmp = ALL_GENES
+    tmp$ORF = ORF
+  }else{
+    tmp$ORF = T
   }
-  o = findOverlaps(toGRanges(df), toGRanges(tmp))
+  o = GenomicRanges::findOverlaps(toGRanges(df), toGRanges(tmp))
   cbind(df[queryHits(o)], tmp[subjectHits(o)])
 }
 

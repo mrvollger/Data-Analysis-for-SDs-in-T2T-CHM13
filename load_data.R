@@ -20,8 +20,9 @@ if(F){
   CYTOtmp = toGRanges(fread("data/chm13.CytoBandIdeo.v2.txt", col.names = c("chr","start","end", "name","gieStain")))
   CYTO38 = getCytobands(genome="hg38")
   CYTOFULL = c(CYTOtmp,  CYTO38[seqnames(CYTO38) == "chrY"])
-  plotKaryotype(genome=GENOME, cytobands = CYTOFULL)
-  show_col(getCytobandColors())
+  #plotKaryotype(genome=GENOME, cytobands = CYTOFULL)
+  #show_col(getCytobandColors())
+  
   #
   # reading in data data frames
   #
