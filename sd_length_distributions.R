@@ -1,5 +1,5 @@
 #!/usr/bin/env Rscript
-#setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
+setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
 source("plotutils.R")
 library(ggridges)
 
@@ -9,9 +9,10 @@ acro = tmp[acro>0 | acro2 > 0]; acro$Assembly = "acrocentric"
 telo = tmp[telo>0 | telo2 > 0]; telo$Assembly = "telomeric"
 intra = tmp[chr == chr2]; intra$Assembly = "intrachromosomal"
 inter = tmp[chr != chr2]; inter$Assembly = "interchromosomal"
+notacro = tmp[acro == 0 & acro2 == 0]; notacro$Assembly = "not acrocentric"
 all = tmp; all$Assembly = "All"
-df = rbind(intra, inter, acro, peri, telo, all)
-df$length = df$end - df$start
+df = rbind(intra, inter, acro, peri, telo, all, notacro)
+df$length = df$matchB + df$mismatchB #df$end - df$start
 df$Assembly = factor(df$Assembly, levels =  unique(df$Assembly))
 df$Assembly
 
@@ -20,7 +21,7 @@ header = strsplit(x, "\\s+")[[1]]
 colnames(df)[4:length(header)] = header[4:length(header)]
 
 names = levels(df$Assembly)
-colors = c(OLDCOLOR, BLUE, NEWCOLOR, "#FF0000","green", "black")
+colors = c(OLDCOLOR, BLUE, NEWCOLOR, "#FF0000","green", "black", 'blue')
 names(colors) = names
 
 ggplot(data=df) +
@@ -83,3 +84,8 @@ for(n in names){
 }
 writeLines(out, fileConn)
 close(fileConn)
+
+tmp
+
+length_stats(df[Assembly=="acrocentric"])
+length_stats()

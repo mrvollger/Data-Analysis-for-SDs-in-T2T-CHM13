@@ -65,6 +65,7 @@ readbed = function(f, tag, rm=F, chrfilt=FALSE){
   if("chr2" %in% colnames(df)){
     df$intra=df$chr == df$chr2
     df$chr2 = factor(df$chr2, levels =  c(CHRS, unique(df$chr2[which(!df$chr2 %in% CHRS)]) ) , ordered = TRUE)
+    df = df[chr %in% NOM & chr2 %in% NOM]
   }
   if(chrfilt){
     df = df[chr %in% CHRS & chr2 %in% CHRS]
