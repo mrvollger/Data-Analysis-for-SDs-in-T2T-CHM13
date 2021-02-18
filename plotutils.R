@@ -90,7 +90,6 @@ grtodf = function(gr){
 # util funcations
 #
 add_genes=function(df, all=FALSE){
-  df=rgn.df; all=TRUE
   #df=rdg[,c(4,5,6,1)]
   #x = do_bedtools_intersect(toGRanges(df[,1:4]), toGRanges(GENES[,1:4]), loj = T); nrow(df)
   tmp=GENES
@@ -106,6 +105,29 @@ add_genes=function(df, all=FALSE){
   o = GenomicRanges::findOverlaps(toGRanges(df), toGRanges(tmp))
   cbind(df[queryHits(o)], tmp[subjectHits(o)])
 }
+has_genes=function(df, all=FALSE){
+  #df=rdg[,c(4,5,6,1)]
+  #x = do_bedtools_intersect(toGRanges(df[,1:4]), toGRanges(GENES[,1:4]), loj = T); nrow(df)
+  tmp=GENES
+  if(all){
+    # fine ones with ORF
+    ORF = do.call(paste0, ALL_GENES[,1:12]) %in% do.call(paste0, GENES[,1:12])
+    sum(ORF)
+    tmp = ALL_GENES
+    tmp$ORF = ORF
+  }else{
+    tmp$ORF = T
+  }
+  o = GenomicRanges::findOverlaps(toGRanges(df), toGRanges(tmp))
+  unique(queryHits(o))
+}
+
+is_sd=function(df){
+  tmp=GenomicRanges::reduce(toGRanges(SEDEF))
+  o = GenomicRanges::findOverlaps(toGRanges(df), tmp)
+  unique(queryHits(o))
+}
+
 
 rgntag = function(q,r, tag, minoverlap=0, mincov=0.5, rreduce=FALSE){
   if(rreduce){

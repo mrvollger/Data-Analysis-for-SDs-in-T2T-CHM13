@@ -17,8 +17,8 @@ make_minigraph_figure = function(gene, search_gene, simple_gene){
   # 
   DF = fread(glue("{DATA_DIR}/Minigraph/{gene}.tbl"))
   DUPLICONS = tri_bed(glue("{DATA_DIR}/Masked/{gene}_dupmasker_colors.bed"))
-  ALL_GENES = fread(glue("{DATA_DIR}/Liftoff/{gene}.all.bed"))
-  names(ALL_GENES)[1:3] = c("chr","start","end")
+  All_genes = fread(glue("{DATA_DIR}/Liftoff/{gene}.all.bed"))
+  names(All_genes)[1:3] = c("chr","start","end")
   GFA = glue("{DATA_DIR}/Minigraph/{gene}.gfa")
   CSV = fread(glue("{DATA_DIR}/Minigraph/{gene}.csv"))
   
@@ -32,14 +32,17 @@ make_minigraph_figure = function(gene, search_gene, simple_gene){
   MAX_SM = max(NUM_R, MAX_ROWS)
   KEEP = as.factor(c(as.character(R_NAMES), as.character(Q_ONLY[1:(MAX_SM-NUM_R)])))
   KEEP = KEEP[!is.na(KEEP)]
-  # orgganize by length
-  KEEP = unique(c("CHM13.pri__1","GRCh38chrOnly.pri__1", merge(data.table(q=KEEP), DF[, c("q","ql")])[order(ql)]$q))
   
-  print(DF)
+  CHM13_name = grep("CHM13.pri", c(R_NAMES, Q_NAMES), value = T)[1]
+  GRCh38_name = grep("GRCh38chrOnly", c(R_NAMES, Q_NAMES), value = T)[1]
+  
+  # orgganize by length
+  KEEP = unique(c(CHM13_name, GRCh38_name, merge(data.table(q=KEEP), DF[, c("q","ql")])[order(ql)]$q))
+  
   # cleanup the DF
   df = clean_df(DF, KEEP)
   duplicons = clean_df(DUPLICONS, KEEP)
-  all_genes = clean_df(ALL_GENES, KEEP)
+  all_genes = clean_df(All_genes, KEEP)
   csv = clean_df(CSV, KEEP)
   
   #
@@ -292,7 +295,7 @@ make_minigraph_figure = function(gene, search_gene, simple_gene){
   figure1=cowplot::plot_grid(graph_figure, p, ncol=2, rel_widths = c(2,4), labels = "auto")
   figure = cowplot::plot_grid(title, figure1, nrow=2, rel_heights = c(.5,max(num_q_seqs,8)))
   adjust = .8
-  ggsave(glue("minigraph_figures/{gene}.pdf"), height = adjust*1.25*max(num_q_seqs,8), width = adjust*20, plot = figure)
+  ggsave(glue("{FIGURE_DIR}/Minigraph Figures/{gene}.pdf"), height = adjust*1.25*max(num_q_seqs,8), width = adjust*20, plot = figure)
 
 }
 
@@ -309,6 +312,7 @@ MAX_ROWS = 150 # the maximum number of rows to plot, though it always plots all 
 DATA_DIR = "../orthology_analysis/TBC1D3/minigraph/pull_sd_regions"
 DATA_DIR = "../sd_regions_in_hifi_wga/pull_by_regions_snake_results/pull_sd_regions"
 BANDAGE_PATH = "~/software/Bandage//Bandage.app/Contents/MacOS/"
+FIGURE_DIR="~/Google Drive/My Drive/Vollger CHM13 T2T SDs 2020/Figures/"
 
 # READ HERE!!!!!!!!!!!!
 #
@@ -323,10 +327,13 @@ make_minigraph_figure("TBC1D3_2", "TBC1D3", "TBC1D3 (2)")
 make_minigraph_figure("SMN", "SMN","SMN")
 make_minigraph_figure("CYP2D6", "CYP2D","CYP2D6")
 make_minigraph_figure("ARHGAP11", "ARHGAP11","ARHGAP11")
-make_minigraph_figure("16p11.2", "NPIP","16p11.2")
+make_minigraph_figure("BOLA2_NPIPB", "BOLA2","BOLA2")
 make_minigraph_figure("NOTCH2", "NOTCH2","NOTCH2")
 make_minigraph_figure("NOTCH2NL", "NOTCH2NL","NOTCH2NL")
 make_minigraph_figure("TCAF2", "TCAF","TCAF")
 make_minigraph_figure("LPA", "LPA","LPA")
-gene="SRGAP2A"; search_gene = "SRGAP2"; simple_gene="SRGAP2"
-make_minigraph_figure("SRGAP2A","SRGAP2","SRGAP2")
+make_minigraph_figure("SRGAP2C","SRGAP2","SRGAP2")
+
+# SRGAP2A has zero heterozygosity, ignore. 
+#gene="SRGAP2A"; search_gene = "SRGAP2"; simple_gene="SRGAP2"
+#make_minigraph_figure("SRGAP2A","SRGAP2","SRGAP2")

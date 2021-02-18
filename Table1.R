@@ -215,18 +215,20 @@ pull.df = merge(pull.df, het.df, all.x=T)
 
 pull.df = pull.df[ !(Region == "NOTCH2NL" & length < 50000 & sm == "HG03125") ]
 
-pull.tbl = pull.df %>% filter(Region!="SRGAP2B_D" & Region != "SRGAP2C" & Species=="Human") %>%
+pull.tbl = pull.df %>% filter(Region!="SRGAP2B_D" & Region != "SRGAP2C" & Region != "SRGAP2A" & Species=="Human") %>%
   group_by(Region) %>%
   summarise(`CHM13 (kbp)` = comma(length[sm=="CHM13"]/1000),
             `GRCh38 (kbp)` = comma(length[grepl("GRCh38", sm)]/1000),
             `Average length (kbp)` = comma(mean(length)/1000),
             `s.d. (kbp)` = comma(sd(length/1000)),
-            `# resolved haplotypes`= n() - 1, # for hg38
+            `# resolved haplotypes`= n()-1, # for hg38
             `% resolved` = 100*(`# resolved haplotypes`)/unique(N),
-            `% heterozygosity` = 100*sum(!is.na(V5))/`# resolved haplotypes`
-            ) %>%
-  mutate(Region = gsub("_", "/", Region))
+            `% heterozygous haplotypes` = 100*sum(!is.na(V5))/(`# resolved haplotypes`+1)
+            )
 
+be_coords = fread("../sd_regions_in_hifi_wga/pull_by_regions_snake_results/regions.bed", col.names = c("chr", "start","end","Region"))
+
+pull.tbl=merge(pull.tbl, be_coords, all.x=T)
 
 tab_df(pull.tbl,
        title = "Table 2. Assemblies of evolutionary and biomedically important loci",
@@ -235,25 +237,40 @@ tab_df(pull.tbl,
        show.footnote = TRUE, 
        show.rownames = TRUE
        )
+#
+#
+# SVs in the evolutionary loci
+#
+#
+sv = fread("../sd_regions_in_hifi_wga/pull_by_regions_snake_results/pull_sd_regions/sv.results.tbl")
+colnames(sv)[1:6] = c("contig", "SV.start", "SV.end", "bubble.contig", "bubble.start", "bubble.end")
+sv.tab = sv %>% filter(description != "Syntenic") %>%
+  filter(!(region == "NOTCH2NL" & length < 50000 & contig == "HG03125.mat__1")) %>%
+  separate(description, into = c("SV.type", "SV.kbp"), sep = "_|(kbp)") %>%
+  mutate(SV.kbp = as.numeric(SV.kbp)) %>% filter(SV.kbp > 0) %>%
+  separate(contig, into = c("contig", "# of haps"), sep='__')  %>%
+  group_by(region, length, contig, `# of haps`, haplotypes, SV.type) %>%
+  summarise(`#` = n(), `kbp` = paste(SV.kbp, collapse=";"), `total_kbp` = sum(SV.kbp)) %>%
+  pivot_wider(names_from = `SV.type`, values_from = c("#", "kbp", "total_kbp"),
+              names_sort=T) %>%
+  mutate(`All SV kbp`= sum(total_kbp_DEL,total_kbp_INS, total_kbp_INV, na.rm=T)) %>%
+  mutate(`Total # SVs`= sum(`#_DEL`,`#_INS`, `#_INV`, na.rm=T))%>%
+  relocate(haplotypes, .after = last_col()) %>%
+  relocate(`Total # SVs`, .after = `# of haps`)%>%
+  relocate(`All SV kbp`, .after = `# of haps`) %>%
+  replace_na(value = 0)
+  
 
+#
+# dupmakser duplicons
+# 
+#
+dm_diffs = dups[,1:7]
 
-##write.xlsx2(x = data.table(pull.tbl), file = "Tables/all_tables.xlsx", sheetName = "Biomedical and evolutionary loci",
-#           row.names=FALSE, append=TRUE)
-
-#
-#
-# new gene modesl
-#
-#
-#
-#write.xlsx2(data.table(NEW_GENES), file = "Tables/all_tables.xlsx", sheetName = "New gene models",
-#           row.names=FALSE, append=TRUE)
 
 #
 #
 # genicn CN differences 
-#
-#
 #
 #
 to_table = unique(rgn.df.with.genes[,c("gene","chr","start","end","ORF",
@@ -267,64 +284,102 @@ setnames(to_table,
                  "CHM13 CN", "GRCh38 CN"), 
          skip_absent = T)
 write.table(to_table, file="Tables/CN_of_non_syntenic_genes.tsv", sep="\t", row.names = F)
-#write.xlsx2(to_table, file = "Tables/all_tables.xlsx", sheetName = "CN of non-syntenic genes",
-#           row.names=FALSE, append=TRUE)
+
 
 #
 #
-# Segmental duplications
+# # of SDs window counts (see sd_density_comparison.r )
 #
 #
-#write.xlsx2(SEDEF, file = "Tables/all_tables.xlsx", sheetName = "Segmental Duplications",
-#           row.names=FALSE, append=TRUE)
-
-#
-#
-# non-syntenic
-#
-#
-#write.xlsx2(NEW, file = "Tables/all_tables.xlsx", sheetName = "non-sytenic regions",
-#           row.names=FALSE, append=TRUE)
-
-# see sd_density_comparison.r 
 sd_com = copy(sd_count[, c(1:3,6:10)]) %>% arrange(-diff)
 names(sd_com) = c("chr", "start","end", '# CHM13 SDs', '# GRCh38 SDs', 'CHM13 SD bp', "GRCh38 SD bp", "# difference")
-sd_com
+
 
 #
-# write 
+#
+# write all output tables 
+#
 #
 hs <- createStyle(
   textDecoration = "BOLD", fontColour = "#000000", fontSize = 12,
   border="bottom", borderStyle="medium",halign="center"
   #fontName = "Arial Narrow", fgFill = "#4F80BD"
 )
-openxlsx::write.xlsx(list(`Table 1`=out,
-                           `Core Duplicon CN`=core_afr_cn.df,
-                           `Evolutionary and biomedical loci`=pull.tbl,
-                           `Assemblies used for analysis`=asm.tbl,
-                           `New genes`=data.table(NEW_GENES)[cdslen>=200],
-                           `CN of non-syntenic genes`=to_table,
-                           `non-sytenic regions`= NEW,
-                           `Region CN` = rgn.df,
-                           `SD window comparison` = sd_com
-                           ),
-                     colNames = TRUE,
-                     headerStyle = hs,
-                     numFmt = "COMMA",
-                     colWidths="auto",
-                     gridLines=FALSE,
-                     "Tables/all_tables.xlsx")
 
-openxlsx::write.xlsx(list(`Sample CN` = rdg,
-                          `Segmental duplications` = SEDEF
-                          ),
-                    colNames = TRUE,
-                    headerStyle = hs,
-                    numFmt = "COMMA",
-                    colWidths="auto",
-                    gridLines=FALSE,
-                    "Tables/data_tables.xlsx")
+openxlsx::write.xlsx(
+  list(`Table 1`=out),
+  headerStyle = hs,numFmt = "COMMA", colWidths="auto", gridLines=FALSE, colNames = TRUE,
+  "~/Google Drive/My Drive/Vollger CHM13 T2T SDs 2020/Tables/Table1.xlsx")
 
+openxlsx::write.xlsx(
+  list(`Core Duplicon CN in AFR vs non-AFR`=core_afr_cn.df),
+  headerStyle = hs,numFmt = "COMMA", colWidths="auto", gridLines=FALSE, colNames = TRUE,
+  "~/Google Drive/My Drive/Vollger CHM13 T2T SDs 2020/Tables/Core_duplicon_CN_in_AFR_vs_non_AFR.xlsx") 
+
+openxlsx::write.xlsx(
+  list(`Evolutionary and biomedical loci`=pull.tbl),
+  headerStyle = hs,numFmt = "COMMA", colWidths="auto", gridLines=FALSE, colNames = TRUE,
+  "~/Google Drive/My Drive/Vollger CHM13 T2T SDs 2020/Tables/Evolutionary_and_biomedical_loci.xlsx") 
+
+openxlsx::write.xlsx(
+  list(`Evolutionary and biomedical loci SVs`=sv.tab),
+  headerStyle = hs,numFmt = "COMMA", colWidths=80, gridLines=TRUE, colNames = TRUE, 
+  "~/Google Drive/My Drive/Vollger CHM13 T2T SDs 2020/Tables/Evolutionary_and_biomedical_loci_SVs.xlsx") 
+
+
+openxlsx::write.xlsx(
+  list(`Assemblies used for analysis`=asm.tbl),
+  headerStyle = hs,numFmt = "COMMA", colWidths="auto", gridLines=FALSE, colNames = TRUE,
+  "~/Google Drive/My Drive/Vollger CHM13 T2T SDs 2020/Tables/Assemblies_used_for_analysis.xlsx") 
+
+openxlsx::write.xlsx(
+  list( `New genes by liftoff`=data.table(NEW_GENES)[cdslen>=200]),
+  headerStyle = hs,numFmt = "COMMA", colWidths="auto", gridLines=FALSE, colNames = TRUE,
+  "~/Google Drive/My Drive/Vollger CHM13 T2T SDs 2020/Tables/New_genes_by_liftoff.xlsx") 
+
+openxlsx::write.xlsx(
+  list(`CN of non-syntenic genes`=to_table),
+  headerStyle = hs,numFmt = "COMMA", colWidths="auto", gridLines=FALSE, colNames = TRUE,
+  "~/Google Drive/My Drive/Vollger CHM13 T2T SDs 2020/Tables/CN_of_non_syntenic_genes.xlsx") 
+
+openxlsx::write.xlsx(
+  list(`Non-sytenic regions`= NEW),
+  headerStyle = hs,numFmt = "COMMA", colWidths="auto", gridLines=FALSE, colNames = TRUE,
+  "~/Google Drive/My Drive/Vollger CHM13 T2T SDs 2020/Tables/Non_sytenic_regions.xlsx") 
+
+openxlsx::write.xlsx(
+  list(`CN in all genotyped regions` = rgn.df),
+  headerStyle = hs,numFmt = "COMMA", colWidths="auto", gridLines=FALSE, colNames = TRUE,
+  "~/Google Drive/My Drive/Vollger CHM13 T2T SDs 2020/Tables/CN_in_all_genotyped_regions.xlsx") 
+
+openxlsx::write.xlsx(
+  list(`Number of SDs per window` = sd_com),
+  headerStyle = hs,numFmt = "COMMA", colWidths="auto", gridLines=FALSE, colNames = TRUE,
+  "~/Google Drive/My Drive/Vollger CHM13 T2T SDs 2020/Tables/Number_of_SDs_per_window.xlsx") 
+
+
+openxlsx::write.xlsx(
+  list(`Differences in duplicon content` = dm_diffs),
+  headerStyle = hs,numFmt = "COMMA", colWidths="auto", gridLines=FALSE, colNames = TRUE,
+  "~/Google Drive/My Drive/Vollger CHM13 T2T SDs 2020/Tables/Differences_in_duplicon_content.xlsx") 
+
+openxlsx::write.xlsx(
+  list(`Genic SD expansions in T2T relative to Clint` = PTR_MIS),
+  headerStyle = hs,numFmt = "COMMA", colWidths="auto", gridLines=FALSE, colNames = TRUE,
+  "~/Google Drive/My Drive/Vollger CHM13 T2T SDs 2020/Tables/Genic_SD_expansions_in_T2T_relative_to_Clint.xlsx") 
+
+
+#
+# large tables 
+#
+openxlsx::write.xlsx(
+  list(`CN of all SGDP samples` = rdg),
+  headerStyle = hs,numFmt = "COMMA", colWidths="auto", gridLines=FALSE, colNames = TRUE,
+  "~/Google Drive/My Drive/Vollger CHM13 T2T SDs 2020/Tables/Large Tables/CN_of_all_SGDP_samples.xlsx") 
+
+openxlsx::write.xlsx(
+  list(`Segmental duplications` = SEDEF),
+  headerStyle = hs,numFmt = "COMMA", colWidths="auto", gridLines=FALSE, colNames = TRUE,
+  "~/Google Drive/My Drive/Vollger CHM13 T2T SDs 2020/Tables/Large Tables/Segmental_duplications.xlsx") 
 
 
