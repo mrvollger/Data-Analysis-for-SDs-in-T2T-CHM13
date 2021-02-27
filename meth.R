@@ -2,16 +2,11 @@
 setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
 source("plotutils.R")
 
-SAMPLE="HG002"
-SAMPLE=""
-if(F){
-  METH_SD_GENES = fread(glue("../t2t_globus_share/team-epigenetics/20200727_methylation/v1.0_methylation/SD_analysis/sd.{SAMPLE}transcripts.10kb_methAG.bed.gz"))
-  METH_CLUSTERS = fread("../t2t_globus_share/team-epigenetics/20200727_methylation/v1.0_methylation/t2t_chm13v1.0_SD_clustered_methylation.bed")
-  save(METH_SD_GENES, METH_CLUSTERS, file = glue("~/Desktop/Rdata/{SAMPLE}meth.data"))
-}else{
-  load(glue("~/Desktop/Rdata/{SAMPLE}meth.data"))
-}
+
 df=METH_CLUSTERS
+
+
+
 
 mycol = function(x){
   if(x["clust_meth"]=="meth"){
@@ -32,7 +27,7 @@ b=as.ggplot(expression(
   kp <- plotKaryotype(genome = GENOME, chromosomes =NOYM, cytobands = CYTO[CYTO$gieStain != "stalk"], plot.type = 6),
   kpPlotRegions(kp, data=meth, col=meth$color, border = NEWCOLOR),
   kpPlotRegions(kp, data=unmeth, col=unmeth$color, border = OLDCOLOR)
-))+theme_nothing()
+))+theme_nothing(); b
 
 a= ggplot(data=df) + 
   geom_histogram(aes(avgmeth, fill=color, weight=end-start), bins=50) + 
@@ -52,35 +47,50 @@ l=get_legend(
 meth_block_plot = cowplot::plot_grid(l,b,a, ncol = 1, rel_heights = c(0.25,3,1.5)) 
 meth_block_plot
 scale=1.25
-ggsave("supp/meth_locations.pdf", plot=meth_block_plot, height = 8*scale, width = 12*scale)
+
+ggsave(glue("{SUPP}/meth_ideogram.pdf"), plot=meth_block_plot, height = 8*scale, width = 12*scale)
 
 
-
-
-
+#
 #
 #
 # meth genes plots
 #
 #
-in.df = METH_SD_GENES#[, c("width","num_motifs_in_group","called_sites", "group_sequence", "total_calls","called_sites_methylated"):=NULL]
+#
+SAMPLE="HG002"
+SAMPLE=""
+if(SAMPLE=="HG002"){
+  meth_and_transcript = METH_SD_GENES_002
+}else{
+  meth_and_transcript = METH_SD_GENES
+}
+in.df = meth_and_transcript
+
 # summarize data by gene
 in.df$quartile = cut(in.df$n_transcripts, breaks = c(0,1,10,Inf), include.lowest = T, right = F)
 n_windows=200
 in.df$cut = cut(in.df$dist, breaks=n_windows)
 in.df$is_sd = in.df$is_sd > 0
+cluster <- new_cluster(12)
 grouped.df = in.df %>%
   group_by(gene, n_transcripts, quartile, cut, is_sd, genewidth) 
+#%>% 
+ # partition(cluster)
 
 gene.df = grouped.df %>%
   summarise(methylated_frequency = median(methylated_frequency), 
-            n_cpg = n(), 
+            n_cpg = n(), # might need to change back to n()
             chr=chr[1], 
             start=min(start), 
             end=max(end)) %>%
   mutate(x_tmp = str_sub(cut, 2, -2)) %>% # pull out the start and end of the cut intervals
   separate(x_tmp, c("min", "max"), sep = ",") %>% 
-  mutate_at(c("min", "max"), as.double)
+  mutate_at(c("min", "max"), as.double) 
+#%>%
+ # collect()
+
+
 gene.df
 unique(gene.df[,c("chr","start","end","cut","gene")])
 # summarize data along all genes
@@ -137,7 +147,8 @@ iso_meth_plot = ggplot(data=gene.ave.df,
 #
 #
 #
-just_genes = readbed("../methylation_sd_analysis/sd.transcripts.and.meth.bed","z")
+#just_genes = readbed("data/methylation_sd_analysis/sd.transcripts.and.meth.bed","z")
+just_genes = METH_JUST_GENES
 
 strand_scale = function(just_genes,  width = 0.01, scale = 1, offset=0){
   mmin = 0
@@ -180,11 +191,14 @@ scaled_genes = rbind(strand_scale(up_slop(just_genes), width = 0.02, offset=-1),
       strand_scale(down_slop(just_genes), width = 0.02, offset=2),
       strand_scale(just_genes, scale=2))[order(chr,start)]
 
-write.table(scaled_genes, file="../meth_promotor_regions/scaled_binned_slop_genes.bed", 
-            col.names = F, sep="\t",row.names = F, quote = F)
+if(F){
+  write.table(scaled_genes, file="data/scaled_binned_slop_genes.bed", 
+              col.names = F, sep="\t",row.names = F, quote = F)
+  FA="../Assembly_analysis/SEDEF/chm13.draft_v1.0_plus38Y_masked.fasta"
+  system(glue("bedtools nuc -fi {FA} -C -pattern CG -bed data/scaled_binned_slop_genes.bed > data/scaled_binned_slop_genes.cpg.bed"))
+}
 
-
-cpg_data =  fread("../meth_promotor_regions/scaled_binned_slop_genes.cpg.bed") 
+cpg_data = CPG_DATA
 colnames(cpg_data)[1:length(colnames(scaled_genes))] = colnames(scaled_genes) 
 cpg_data$n_cpg = cpg_data$`27_user_patt_count`
 cpg_data$quartile = cut(cpg_data$n_transcripts, breaks = c(0,1,10,Inf), include.lowest = T, right = F)
@@ -240,7 +254,7 @@ length_plot = ggplot(data = tmp.df,
   theme_minimal_vgrid()+
   theme(legend.position = "bottom"); length_plot
 
-ggsave(glue("supp/meth_ave_num_cp{SAMPLE}.pdf"), height = 12, width = 20, plot=cowplot::plot_grid(iso_ncpg_plot, length_plot, nrow=2, rel_heights = c(2,1)))
+ggsave(glue("{SUPP}/meth_ave_num_cp{SAMPLE}.pdf"), height = 12, width = 20, plot=cowplot::plot_grid(iso_ncpg_plot, length_plot, nrow=2, rel_heights = c(2,1)))
 
 sd_genes = unique(in.df[in.df$is_sd], by= c("chr","gene","quartile", "n_transcripts"))
 sd_genes$origin = gsub("_.*","",sd_genes$gene)
@@ -295,7 +309,7 @@ meth_fig = cowplot::plot_grid(
   gene_plot, nrow=2, rel_heights = c(2,1), labels = c(NA,"c"))
 
 meth_fig
-ggsave(glue("figures/meth_fig{SAMPLE}.pdf"), plot=meth_fig, height = 12, width = 16)
+ggsave(glue("{SUPP}/meth_fig{SAMPLE}.pdf"), plot=meth_fig, height = 12, width = 16)
 
 
 
@@ -324,21 +338,32 @@ ggplot(data=near_tss,
   
 
 
-wilcox.test(sdtts$methylated_frequency, 
+test_hyper_methylation = wilcox.test(sdtts$methylated_frequency, 
             utts$methylated_frequency, alternative = "greater")
 
-near_tss %>% group_by(is_sd, quartile) %>% 
+cat(as.character(test_hyper_methylation), file=glue("{SUPP}/meth_hyper_over_tss{SAMPLE}.txt"), sep="\n")
+
+z = near_tss %>% group_by(is_sd, quartile) %>% 
   summarise(median_at_tts = median(methylated_frequency), median_overall = unique(median)) %>%
   mutate(difference = median_at_tts - median_overall)
+z
+write.table(z, file=glue("{SUPP}/meth_hyper_over_tss{SAMPLE}.tbl"))
+
+
+
+
 
 
 #
-# bedfile for flank anlysis
 #
-
+#
+# look for cpg islands
+#
+#
+#
 gene_tbl = unique(data.table(gene.df[,c("gene","n_transcripts","quartile","is_sd")]))
 bins=1500
-x=fread(glue("../meth_promotor_regions/flanks.{bins}.gc.content.bed"))
+x=fread(glue("data/flanks.{bins}.gc.content.bed"))
 genes_with_gc = merge(gene_tbl, x, by.x=c("gene"), by.y=c("4_usercol") )
 
 genes_with_gc$`CpG count` = genes_with_gc$`17_user_patt_count`
@@ -369,10 +394,18 @@ gc_plot = ggplot(data=genes_with_gc, aes(x=value, fill=is_sd, color=is_sd))+
   xlab(glue("CpG count (left) and GC content (right) {bins} bp upstream and downstream of TSS"))+
   ylab("Binned Iso-Seq transcript counts")
 gc_plot 
-ggsave(glue("supp/meth_tss_gc_content{SAMPLE}.pdf"), plot=gc_plot, height = 12, width = 16)
+ggsave(glue("{SUPP}/meth_tss_gc_content{SAMPLE}.pdf"), plot=gc_plot, height = 12, width = 16)
+
+
+
+
 
 #
+#
+#
 # check if the untranscribed genes overlap with hypomethylated blocks
+#
+#
 #
 gene_meth_pos = unique(in.df[,c("chr","gene_start","gene_end","gene", "n_transcripts", "is_sd")])
 test_un = gene_meth_pos[is_sd & n_transcripts==0 & gene %in% near_tss$gene]
@@ -400,12 +433,49 @@ lines(x = rep(our_result, 2), y=c(0,1000000), col="red")
 p_value_for_unmth_enrichment = 1 - sum(our_result > permutation_results)/ length(permutation_results)
 p_value_for_unmth_enrichment
 
+cat(p_value_for_unmth_enrichment,file=glue("{SUPP}/meth_hypo_block_pvalue{SAMPLE}.txt"),sep="\n")
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+if(FALSE){
 #
 # motif ?
 #
-motif_df = METH_SD_GENES[group_sequence != "split-group" & dist > -.002 & dist < .002]
+motif_df = meth_and_transcript[group_sequence != "split-group" & dist > -.002 & dist < .002]
 motif_df$A = str_count(motif_df$group_sequence,"A")
 motif_df$T = str_count(motif_df$group_sequence,"T")
 motif_df$C = str_count(motif_df$group_sequence,"C")
@@ -449,3 +519,5 @@ library(sjlabelled)
 
 m1 = lm(n_transcripts ~ . - gene -n_transcripts , data=lm.wide.df)
 tab_model(m1)
+}
+

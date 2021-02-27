@@ -49,6 +49,8 @@ my_sum <- function(df){
 new_or_sv = copy(SEDEF[overlaps(SEDEF, NEW)])
 new_or_sv$Assembly = "New or structurally variable"
 
+
+
 out = rbind(SEDEF, SEDEF_38, new_or_sv) %>% 
   group_by(Assembly) %>%
   group_modify( ~ my_sum(.x)) %>%
@@ -58,6 +60,14 @@ out = rbind(SEDEF, SEDEF_38, new_or_sv) %>%
 out[3,c("Gbp","% SD")] = list(nonr(NEW)/1e3, nonr(new_or_sv)/(nonr(NEW))*100)
 diff = tibble(Assembly="Difference", out[1,2:length(out)] - out[2,2:length(out)] )
 out=rbind(out,diff)
+
+rDNA = copy(out[1,])
+rDNAS = 11.5
+#chr13 4050, chr14 675, chr15 2700, chr21 3150, chr22 900
+rDNAC = 11.5e6/45e3
+rDNA$`SD (Mbp)`
+
+
 out
 
 tab_df(out,
@@ -294,6 +304,80 @@ write.table(to_table, file="Tables/CN_of_non_syntenic_genes.tsv", sep="\t", row.
 sd_com = copy(sd_count[, c(1:3,6:10)]) %>% arrange(-diff)
 names(sd_com) = c("chr", "start","end", '# CHM13 SDs', '# GRCh38 SDs', 'CHM13 SD bp', "GRCh38 SD bp", "# difference")
 
+#
+#
+# peri to acro
+#
+#
+peri_to_acro = SEDEF[peri & ( !chr %in% ACHRO) & acro2] %>% group_by(chr) %>%
+  summarise(
+            start = min(start),
+            end = max(end),
+            `# SDs` = n(),
+            `Peri non-redudant kbp` = sum(width(GenomicRanges::reduce(toGRanges(chr,start,end))))/1e3, 
+            `Redudant aligned kbp` = sum(matchB + mismatchB)/1e3, 
+            `Ave. % ID` = mean(100*fracMatch)) %>%
+  arrange(-`Redudant aligned kbp`); peri_to_acro
+
+#
+#
+# rDNA collapses in the assembly 
+#
+#
+readdepth = 32.67149444733489 
+rdna_rd = fread("../sda_out/v1_collasped_regions_to_look_at/sd.collapsed.bed",
+                col.names = c("chr","start","end","mean coverage","median coverage", "length"))
+rdna_rd.tab = rdna_rd %>% filter(`mean coverage` > 100) %>%
+  mutate(`Expected kbp of uncollapsed sequence` = `mean coverage` * length / (1e3 * readdepth) ) 
+
+sum(rdna_rd.tab$`Expected kbp of uncollapsed sequence`)
+ 
+
+#
+#
+# largest duplicons in the genomes
+#
+#
+all_duplicons = rbind(DM, DM_38) %>% group_by(Assembly, duplicon, ancestral_position) %>%
+  summarise(count=n(), kbp=sum(end-start)/1e3) %>%
+  pivot_wider(names_from = Assembly, values_from = c(count, kbp), names_glue = "{Assembly} {.value}") %>%
+  arrange(- (`T2T CHM13 kbp` + `GRCh38 kbp`) ) %>%
+  mutate(larger = case_when( `T2T CHM13 kbp` >= `GRCh38 kbp` ~ "T2T CHM13", 
+                             T ~ "GRCh38")
+         )
+openxlsx::write.xlsx(
+  list(`Largest duplicons`=all_duplicons),
+  headerStyle = hs,numFmt = "COMMA", colWidths="auto", gridLines=FALSE, colNames = TRUE,
+  "~/Google Drive/My Drive/Vollger CHM13 T2T SDs 2020/Tables/Largest duplicons.xlsx")
+#
+#
+# geneic duplicons with faimly expansions in the top 30 different
+#
+#
+larger_duplicon_families = fread("../top_30_duplicons_gene_intersect/duplicon.gene.fam.expanded.tbl", 
+                                 col.names = c("count", "Gene family")) %>%
+  filter(count > 1)
+  
+  
+openxlsx::write.xlsx(
+  list(`Expanded gene families`=larger_duplicon_families),
+  headerStyle = hs,numFmt = "COMMA", colWidths="auto", gridLines=FALSE, colNames = TRUE,
+  "~/Google Drive/My Drive/Vollger CHM13 T2T SDs 2020/Tables/Expanded_gene_families_within_the_30_most_expanded_duplicons.xlsx")
+
+
+
+
+
+#
+#
+# rDNA reads
+#
+#
+hifirdna = fread("../t2t_globus_share/team-rdna/reads-per-chromosome-20201120/rdna_read_stats.tbl") %>% 
+  filter(type == "hifi") %>%
+  mutate(`Expected bp of rDNA` = totalBp/readdepth )
+hifirdna
+sum(hifirdna$`Expected bp of rDNA`)/1e6
 
 #
 #
@@ -369,6 +453,22 @@ openxlsx::write.xlsx(
   "~/Google Drive/My Drive/Vollger CHM13 T2T SDs 2020/Tables/Genic_SD_expansions_in_T2T_relative_to_Clint.xlsx") 
 
 
+openxlsx::write.xlsx(
+  list(`SDs from pericentromeric regions to acrocentric arms` = peri_to_acro),
+  headerStyle = hs,numFmt = "COMMA", colWidths="auto", gridLines=FALSE, colNames = TRUE,
+  "~/Google Drive/My Drive/Vollger CHM13 T2T SDs 2020/Tables/Pericentromeric_regions_to_acrocentric_arms.xlsx") 
+
+openxlsx::write.xlsx(
+  list(`rDNA coverage collapses` = rdna_rd.tab),
+  headerStyle = hs,numFmt = "COMMA", colWidths="auto", gridLines=FALSE, colNames = TRUE,
+  "~/Google Drive/My Drive/Vollger CHM13 T2T SDs 2020/Tables/rDNA_coverage_collapses.xlsx") 
+
+openxlsx::write.xlsx(
+  list(`Chr specific rDNA read stats` = rdna_rd.tab),
+  headerStyle = hs,numFmt = "COMMA", colWidths="auto", gridLines=FALSE, colNames = TRUE,
+  "~/Google Drive/My Drive/Vollger CHM13 T2T SDs 2020/Tables/rDNA_coverage_collapses.xlsx") 
+
+
 #
 # large tables 
 #
@@ -381,5 +481,20 @@ openxlsx::write.xlsx(
   list(`Segmental duplications` = SEDEF),
   headerStyle = hs,numFmt = "COMMA", colWidths="auto", gridLines=FALSE, colNames = TRUE,
   "~/Google Drive/My Drive/Vollger CHM13 T2T SDs 2020/Tables/Large Tables/Segmental_duplications.xlsx") 
+
+
+#
+#
+# divergence summary table  
+#
+#
+sty2 = createStyle(numFmt="0.00")
+openxlsx::write.xlsx(
+  list(`Divergence`=divergence_summary),
+  style = sty2,
+  headerStyle = hs,numFmt = "COMMA", colWidths="auto", gridLines=FALSE, colNames = TRUE,
+  "~/Google Drive/My Drive/Vollger CHM13 T2T SDs 2020/Tables/Divergence.xlsx")
+
+
 
 

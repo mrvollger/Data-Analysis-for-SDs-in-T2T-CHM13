@@ -1,59 +1,14 @@
 #!/usr/bin/env Rscript
 setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
-source("plotutils.R")
 
-
-COLORS = c(`T2T CHM13`=NEWCOLOR,CHM13=NEWCOLOR, GRCh38=OLDCOLOR, Polymorphic="gray", Neither = "green", `Equal CN`="gray")
-colors=COLORS
-
-tmp1 = fread("../wssd/v1.0/combined_tables/new_genotypes/wssd/SYNTENY_EXP_SD_wssd_GMM.bed")
-#tmp2 = fread("../wssd/v1.0/rdg_20kb/HIGH_CN/HIGH_CN.hgdp.combined.wssd.GMM.bed")
-tmp2 = fread("../wssd/v1.0/combined_tables/new_genotypes/wssd/HIGH_CN_wssd_GMM.bed")
-if(F){
-  tmp=tmp1
-  maxcn = 5
-  pname="low"
-}else if(T){
-  tmp=rbind(tmp1,tmp2) # do not do, regions tend to overlap
-  maxcn=10
-  pname="both"
-}else{
-  tmp=tmp2
-  maxcn=10
-  pname="high"
-}
-v = ""
-#tmp3=fread("../wssd/rdg_mitchell/rdg_all/TRIMMED_WINDOWS/archaics/TRIMMED_WINDOWS_archaics_wssd.tab");
-#tmp4=fread("../wssd/rdg_mitchell/rdg_all/NEW_WINDOWS/NEW_WINDOWS.hgdp.combined.wssd.bed")
-#tmp5=fread("../wssd/rdg_mitchell/rdg_all/NEW_WINDOWS/NEW_WINDOWS.kmer_ref.combined.wssd.bed")
-#tmp6=fread("../wssd/rdg_mitchell/rdg_all/NEW_WINDOWS/NEW_WINDOWS.sd_freeze.combined.wssd.bed")
-#tmp=merge(merge(merge(tmp4,tmp5),tmp6),tmp3)
-#tmp = fread("../wssd/rdg_mitchell/rdg_all/TRIMMED_WINDOWS/archaics/")
-
-tmp = NA
-regions = "TRIMMED_WINDOWS"
-GMM=""
-for(pop in c("archaics", "hgdp", "kmer_ref", "t2t_dp", "t2t_dp_nhp", "nhp")){
-  t2 = fread(glue("../wssd/rdg_mitchell/rdg_all/{regions}/{regions}.{pop}.wssd{GMM}.genotypes.tab"))
-  tmp  = merge(tmp, t2)
-}
-#tmp = fread(glue("../wssd/rdg_mitchell/rdg_all/TRIMMED_WINDOWS/TRIMMED_WINDOWS.t2t_dp.combined.wssd.GMM.bed"))
-
-#tmp = tmp[overlaps(tmp, NEW)]
-
-#tmp7=fread("../better_wssd_region_caller/CHM13.changepoint.filtered.bed")
-#tmp7=fread("../better_wssd_region_caller/mrv_try_wssd/ALL_RDG_CP/ALL_RDG_CP.archaics.combined.wssd.GMM.bed")
-#tmp$chm13 = tmp7$chm13
-#ignore_apes = c("Kamilah_GGO","Karenina_SSY","Mhudiblu_PPA","OwlMonkey_ANA","Susie_PAB","AG07107_MMU","Clint_PTR")
-#tmp[, (ignore_apes):=NULL]
+maxcn=15
+colors = c(`T2T CHM13`=NEWCOLOR,CHM13=NEWCOLOR, GRCh38=OLDCOLOR, Polymorphic="gray", Neither = "green", `Equal CN`="gray")
 
 ignore = c("chr", "start","end","name","chm13", "hg38")
+cols =  which(!colnames(RDG) %in% ignore)
 
-
-cols =  which(!colnames(tmp) %in% ignore) #colnames(tmp)[!colnames(tmp) %in% ignore]
-
-popinfo = fread("../wssd/v1.0/rdg_20kb/hgdp_manifest.txt")
-rdg = data.table(pivot_longer(tmp, cols=cols, names_to = "Samples", values_to = "CN") %>% 
+popinfo = POPINFO 
+rdg = data.table(pivot_longer(RDG, cols=cols, names_to = "Samples", values_to = "CN") %>% 
                    mutate(chm13=round(chm13), hg38=round(hg38), CN=round(CN)) %>%
                    drop_na() %>%
                    filter_if(~is.numeric(.), all_vars(!is.infinite(.))) %>%
@@ -67,7 +22,7 @@ rdg = data.table(pivot_longer(tmp, cols=cols, names_to = "Samples", values_to = 
 has_Ns = queryHits(findOverlaps(toGRanges(rdg[,c("chr","start","end","name")]), toGRanges(NS)))
 rdg = rdg[-has_Ns,]
 
-rdg$color = COLORS[rdg$winner]
+rdg$color = colors[rdg$winner]
 n.sms = length(unique(rdg$Samples))
 
 
@@ -83,14 +38,14 @@ rgn.df  = data.table(rdg %>% group_by(chr,start,end,name) %>%
                                                     CHM13 >  GRCh38  ~ "CHM13", 
                                                     GRCh38 > CHM13 ~ "GRCh38",
                                                     TRUE ~ "Equal CN"),
-                                region_color = COLORS[status],
+                                region_color = colors[status],
                                 status_std = case_when( 
                                   abs(chm13_cn - median) > std * n_stds & abs(hg38_cn - median) > std * n_stds ~ "Neither", 
                                   abs(chm13_cn - median) <= std * n_stds & abs(hg38_cn - median) <= std *n_stds ~ "Polymorphic", 
                                   abs(chm13_cn - median) <= std * n_stds ~ "CHM13", 
                                   abs(hg38_cn - median) <= std * n_stds ~ "GRCh38"
                                   ),
-                                region_color_std = COLORS[status_std]
+                                region_color_std = colors[status_std]
                                 )
                      )
                         
@@ -123,7 +78,7 @@ rdg= data.table( rdg %>% merge(pop_location, by="super_pop") %>% group_by(super_
 
 # merge with region info
 rdg = merge(rdg, rgn.df[,c("name","status")], on="name")
-rdg$region_color = COLORS[rdg$status]
+rdg$region_color = colors[rdg$status]
 
 #
 #
@@ -161,7 +116,7 @@ ecdf_cn_plot = ggdraw() +
   draw_grob(tableGrob(auc.df, theme=ttheme_minimal(), rows=NULL), 
             x=1, y=1, hjust = 1, vjust = 1.25, halign = 1, valign = 1)
 
-ggsave("supp/wssd_ecdf.pdf", width = 12, height = 8, plot=ecdf_cn_plot)
+ggsave(glue("{SUPP}/wssd_ecdf.pdf"), width = 12, height = 8, plot=ecdf_cn_plot)
 
 
 #
@@ -184,7 +139,7 @@ p = ggplot(data=rdg%>% mutate(diff=case_when(diff>maxcn ~ maxcn, diff < -maxcn ~
   scale_y_continuous(labels = comma) +
   scale_x_continuous(labels =  c(glue("-{maxcn}+"),(1-maxcn):(maxcn-1), glue("{maxcn}+") ), breaks = -maxcn:maxcn) +
   coord_cartesian(xlim=c(-maxcn,maxcn))+ theme_cowplot() + theme(legend.position = "none");p
-ggsave("supp/wssd_cn_diff_hist.pdf", width = 12, height = 8, plot=p)
+ggsave(glue("{SUPP}/wssd_cn_diff_hist.pdf"), width = 12, height = 8, plot=p)
 
 
 #
@@ -204,7 +159,7 @@ kpPlotRegions(kp,
               col=rgn.df$region_color[rgn.df$status!="Equal CN"], 
               ylim = n.sms, data.panel = "ideogram", r0=0.2, r1=0.8, border = NA)
 )); ideo
-ggsave("supp/wssd_ideo_exact_hist.pdf", width = 12, height = 8, plot=ideo)
+ggsave(glue("{SUPP}/wssd_ideo_exact_hist.pdf"), width = 12, height = 8, plot=ideo)
 
 
 #
@@ -219,7 +174,7 @@ p3 = ggplot(data=t1) + geom_bar(aes(x=winner, y=count, fill=winner), stat = "ide
   scale_y_continuous(label=comma)+
   ylab("# of sample genotypes with CN closer to CHM13 or GRCh38") + xlab("") +
   theme(legend.position = "none") ;p3
-ggsave("supp/wssd_sample_closer_hist.pdf", width = 8, height = 8, plot=p3)
+ggsave(glue("{SUPP}/wssd_sample_closer_hist.pdf"), width = 8, height = 8, plot=p3)
 
 p4 = ggplot(data=t2) + geom_bar(aes(y=status, x=count, fill=status), stat = "identity") + 
   geom_text(aes(label=count, y=status, x=count), vjust=-1, angle=0) +
@@ -249,7 +204,7 @@ map <- ggplot(world, aes(long, lat)) +
   geom_scatterpie_legend(zz_extra$radius, x=-160, y=-55, labeller = function(x){x*x/sizescale} ) +
   scale_fill_manual(values=colors) + theme_map() + ylab("Latitude") + xlab("longitude") + theme(legend.position = "top", legend.title = element_blank(), legend.justification = "center"); map
 
-ggsave("supp/wssd_map.pdf", width = 12, height = 8, plot=map)
+ggsave(glue("{SUPP}/wssd_map.pdf"), width = 12, height = 8, plot=map)
 
 
 #
@@ -266,7 +221,7 @@ bp_hist = ggplot(data=rgn.df,
   xlab("") + ylab("# of Mbp where more samples have CN\ngenotypes equal to the reference") +
   theme(legend.position = "none")
 bp_hist
-ggsave("supp/wssd_bp_hist.pdf", width = 8, height = 8, plot=bp_hist)
+ggsave(glue("{SUPP}/wssd_bp_hist.pdf"), width = 8, height = 8, plot=bp_hist)
 
 bp_hist_std = ggplot(data=rgn.df,
        aes(x=status_std, weight=end-start, fill=status_std) 
@@ -279,24 +234,5 @@ bp_hist_std = ggplot(data=rgn.df,
   xlab("") + ylab(glue("# of bp where the reference is within the median CN +/- {n_stds} sd")) +
   theme(legend.position = "none")
 bp_hist_std
-ggsave("supp/wssd_bp_hist_std.pdf", width = 8, height = 8, plot=bp_hist_std)
+ggsave(glue("{SUPP}/wssd_bp_hist_std.pdf"), width = 8, height = 8, plot=bp_hist_std)
 
-
-#
-# Final figure
-#
-fig_top = cowplot::plot_grid(
-  cowplot::plot_grid(p4, ideo, rel_heights = c(.4,1), nrow=2),
-  cowplot::plot_grid(p3, p,    rel_heights = c(.4,1), nrow=2),
-  rel_widths = c(1,1), labels = c("a","b"))
-fig_bot = cowplot::plot_grid(bp_hist, ecdf_cn_plot, rel_widths = c(1,2), labels =c("c","d"))
-fig = cowplot::plot_grid(fig_top, fig_bot, ncol=1,labels = c(NA,NA), rel_heights = c(4,3))
-
-# simplified figure
-fig = cowplot::plot_grid(cowplot::plot_grid(bp_hist, bp_hist_std, labels=c("a","b")), ecdf_cn_plot, rel_heights = c(6,5), ncol = 1, labels =c(NA,"c"))
-
-
-scale=0.8
-ggsave(glue("supp/wssd_{pname}.pdf"), plot=fig, height = 16*scale, width = 16*scale)
-ggsave(glue("supp/wssd_{pname}.png"), plot=fig, height = 16*scale, width = 16*scale, dpi=300)
-fig

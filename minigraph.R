@@ -337,3 +337,5 @@ make_minigraph_figure("SRGAP2C","SRGAP2","SRGAP2")
 # SRGAP2A has zero heterozygosity, ignore. 
 #gene="SRGAP2A"; search_gene = "SRGAP2"; simple_gene="SRGAP2"
 #make_minigraph_figure("SRGAP2A","SRGAP2","SRGAP2")
+
+gene = ""

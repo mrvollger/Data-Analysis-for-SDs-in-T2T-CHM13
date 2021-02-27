@@ -89,7 +89,7 @@ dplot = cowplot::plot_grid(NULL,
                            ncol=1,
                            rel_heights =c(1,2,2,2,2)) 
 s=0.3
-ggsave('supp/nhp_diffs_comparison.pdf', plot = cowplot::plot_grid(dplot,
+ggsave(glue('{SUPP}/nhp_diffs_comparison.pdf'), plot = cowplot::plot_grid(dplot,
                                                                    ncol=1, labels = c('a')
                                                                   ),height = s*40, width = s*40)
 

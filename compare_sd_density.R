@@ -1,7 +1,7 @@
 setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
 source("plotutils.R")
 
-hg_fai = fread("../assemblies/hg38.chr_only.fa.fai", col.names = c("chr","length", "x","y","z"))
+hg_fai = FAI_38 
 diff = merge(FAI,hg_fai, by=c("chr"))
 diff$scale = diff$chrlen/diff$length
 diff[chr=="chr9"]$scale=1
@@ -82,7 +82,7 @@ sd_c_hist= ggplot(data=sd_count) +
   xlab('log2( # CHM13 SDs / # GRCh38 SDs ) per 5Mbp window')+
   theme(legend.position = 'none')+
   scale_fill_manual(values = c(OLDCOLOR, NEWCOLOR))
-ggsave('supp/sd_count_comparison.pdf', plot = sd_c_hist, height = 8, width = 8)
+ggsave(glue('{SUPP}/sd_count_comparison.pdf'), plot = sd_c_hist, height = 8, width = 8)
 
 
 
@@ -152,7 +152,7 @@ dplot = cowplot::plot_grid(NULL,
 
 
 s=0.3
-ggsave('supp/sd_density_comparison.pdf', plot = cowplot::plot_grid(dplot,
+ggsave(glue('{SUPP}/sd_density_comparison.pdf'), plot = cowplot::plot_grid(dplot,
                                                                    cowplot::plot_grid(sd_c_hist, sd_bp_hist, nrow=1, labels = c('b',"c")),
                                                           ncol=1, rel_heights = c(3,1), labels = c('a', NULL)
                                                           ),

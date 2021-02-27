@@ -8,6 +8,7 @@ library(grid)
 library(gridExtra)
 library(data.table)
 library(gtable)
+library(multidplyr)
 library(dplyr)
 library(tidyr)
 #source("http://bioconductor.org/biocLite.R")
@@ -36,25 +37,6 @@ library(ggridges)
 library(xlsx)
 if(! require("ggnewscale")) install.packages("ggnewscale")
 
-#setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
-#suppressPackageStartupMessages(library("argparse"))
-#library(argparse)
-CHRS <<- c(paste0("chr",seq(1,22)),"chrX", "chrY", "chrM", "chrMT")
-NOYM = CHRS[! CHRS %in% c("chrY","chrMT","chrM")]
-NOM = CHRS[! CHRS %in% c("chrMT","chrM")]
-
-GRAY = "#2F4F4F"	
-RED = "#af0404"
-BLUE = "#3282b8"
-NEWCOLOR = RED
-OLDCOLOR = GRAY 
-COLORS <<- c(`T2T CHM13`=NEWCOLOR, GRCh37=BLUE, GRCh38=GRAY, `Celera WGSA`="#ede682", `HG00733 pat`="#96bb7c",`HG00733 mat`="#ade498", `WGAC`="#000000")
-V="chm13.draft_v1.0_plus38Y"
-ACHRO <<- paste0("chr",c(13,14,15,21,22))
-FAI <<- fread(glue("../assemblies/{V}.fasta.fai"),col.names = c("chr","chrlen","x","y","z"))
-FAI$chr = factor(FAI$chr, levels =  c(CHRS, unique(FAI$chr[which(!FAI$chr %in% CHRS)]) ) , ordered = TRUE)
-
-
 readbed = function(f, tag, rm=F, chrfilt=FALSE){
   df = fread(glue(f)); df
   colnames(df)[1:3]=c("chr","start","end")
@@ -62,19 +44,19 @@ readbed = function(f, tag, rm=F, chrfilt=FALSE){
   if(rm){
     colnames(df)=c("chr","start","end","t1","len","strand","type","subtype","x","y")[1:length(colnames(df))]
   }
+  if(chrfilt){
+    df = df[chr %in% NOM & chr2 %in% NOM]
+  }
+  
   if("chr2" %in% colnames(df)){
     df$intra=df$chr == df$chr2
     df$chr2 = factor(df$chr2, levels =  c(CHRS, unique(df$chr2[which(!df$chr2 %in% CHRS)]) ) , ordered = TRUE)
     df = df[chr %in% NOM & chr2 %in% NOM]
   }
-  if(chrfilt){
-    df = df[chr %in% CHRS & chr2 %in% CHRS]
-  }
-  
   df$chr = factor(df$chr, levels =  c(CHRS, unique(df$chr[which(!df$chr %in% CHRS)]) ) , ordered = TRUE)
   df$Assembly = tag
   df = df[order(chr,start)]
-  df
+  df[chr != "chrM"]
 }
 
 grtodf = function(gr){
@@ -151,6 +133,7 @@ overlaps = function(q,r, minoverlap=0, mincov=0.0, rreduce=FALSE){
     q$chr = factor(q$chr, levels =  c(CHRS, unique(q$chr[which(!q$chr %in% CHRS)]) ) , ordered = TRUE)
   }
   c = do_bedtools_coverage(toGRanges(q[,1:3]), toGRanges(r[,1:3]))
+  #print(c)
   overlaps = (c$fraction > mincov) & (c$covered > minoverlap)
   return(overlaps)
 }
@@ -187,6 +170,20 @@ addchr=function(yy=0){
   return(geom_segment(data=fai, aes(x=0,xend=start, y=yy, yend=yy)))
 }
 
+bedlength=function(df, merge=TRUE){
+  print("hi")
+  if(merge){
+    x = sum(width(GenomicRanges::reduce(toGRanges(data.table(df)))))
+  } else {
+    x = sum(width(toGRanges(data.table(df))))
+  }
+  x
+}
+
+find_num_sds=function(df){
+  length(unique(df$unique_id))
+}
+
 gg_color_hue <- function(n) {
   hues = seq(15, 375, length = n + 1)
   hcl(h = hues, l = 65, c = 100)[1:n]
@@ -194,7 +191,7 @@ gg_color_hue <- function(n) {
 
 
 dupmasker_pal =function(){
-  d = fread(glue("../Assembly_analysis/Masked/{V}_dupmasker_colors.bed")); d
+  d = fread(glue("data/{V}_dupmasker_colors.bed")); 
   d$hex = sapply(strsplit(d$V9, ","), function(x) rgb(x[1], x[2], x[3], maxColorValue=255))
   u = unique(d[, c("V4","hex")])
   y = unlist(list(u$hex))
@@ -221,7 +218,8 @@ pairwise_plot = function(df, facet=FALSE, inter=TRUE){
     df = df[ (df$chr %in% unique(chm13$chr)) ]
   }
   if(!inter){
-    df =df[(df$chr == df$chr2)]
+    df = df[df$chr %in% NOM & df$chr2 %in% NOM]
+    df = df[(df$chr == df$chr2)]
   }
   #[df=multiple_sds]
   df$cut = cut(100*df$fracMatch,breaks=seq(85.5,100.5,0.5), include.lowest = TRUE, right = FALSE)

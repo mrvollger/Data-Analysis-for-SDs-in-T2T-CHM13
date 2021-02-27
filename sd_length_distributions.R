@@ -63,12 +63,12 @@ p2 = ggplot(data=df)+
 
 p = plot_grid(p1,p2)
 
-ggsave("supp/sd_length_identity.pdf", plot = p, width = 16, height = 8)
+ggsave(glue("{SUPP}/sd_length_identity.pdf"), plot = p, width = 16, height = 8)
 p
 
 
 
-fileConn<-file("supp/sd_length_identity.txt")
+fileConn<-file(glue("{SUPP}/sd_length_identity.txt"))
 out = c()
 for(n in names){
   for(j in names){
@@ -88,4 +88,3 @@ close(fileConn)
 tmp
 
 length_stats(df[Assembly=="acrocentric"])
-length_stats()
