@@ -10,6 +10,12 @@ if( ! dir.exists("Tables")){
   dir.create("Tables")
 }
 
+hs <- createStyle(
+  textDecoration = "BOLD", fontColour = "#000000", fontSize = 12,
+  border="bottom", borderStyle="medium",halign="center"
+  #fontName = "Arial Narrow", fgFill = "#4F80BD"
+)
+
 nonr <- function(df){
   grange = toGRanges(data.table(df))
   gr = GenomicRanges::reduce(grange)
@@ -61,23 +67,62 @@ out[3,c("Gbp","% SD")] = list(nonr(NEW)/1e3, nonr(new_or_sv)/(nonr(NEW))*100)
 diff = tibble(Assembly="Difference", out[1,2:length(out)] - out[2,2:length(out)] )
 out=rbind(out,diff)
 
+
+z="
+HiFi coverage CN estimate
+chr	2N	1N
+13	150	75
+14	39	19.5
+15	52	44 (8)
+21	124	62
+22	44	22
+ILMN k-mer CN estimate 
+chr	2N	1N
+13	168	84
+14	38	19
+15	50	42 (8)
+21	108	54
+22	36	18
+"
+unit=45e3
+n = ceiling(75+19.5+44+62+22)
+intra_n = ceiling(75*74/2 + 19.5*18.5/2 + 44*43/2 + 62*61/2 + 22*21/2)
 rDNA = copy(out[1,])
-rDNAS = 11.5
-#chr13 4050, chr14 675, chr15 2700, chr21 3150, chr22 900
-rDNAC = 11.5e6/45e3
-rDNA$`SD (Mbp)`
+
+# lead
+rDNA$Assembly = "T2T CHM13 + rDNA (estimate)"
+rDNA$Gbp =   0
+rDNA$`SD (Mbp)` = unit * n / 1e6
+rDNA$`# SDs` = n * ( n - 1 ) / 2
+rDNA$`% SD` = rDNA$`SD (Mbp)`/( out$Gbp[1] * 1e3) *100
 
 
-out
+# bp
+rDNA$`intra (Mbp)` = rDNA$`SD (Mbp)`
+rDNA$`inter (Mbp)` = rDNA$`SD (Mbp)`
+rDNA$`acro (Mbp)` = rDNA$`SD (Mbp)`
+rDNA$`peri (Mbp)` = rDNA$`SD (Mbp)`
+rDNA$`telo (Mbp)` = 0
 
-tab_df(out,
-       col.header = names(out),
+# counts 
+rDNA$`# intra` = intra_n
+rDNA$`# inter` = rDNA$`# SDs` - rDNA$`# intra`
+rDNA$`# acro` = rDNA$`# SDs`
+rDNA$`# peri` = rDNA$`# SDs`
+rDNA$`# telo` = 0
+
+out2 = rbind(out[1,], rDNA)
+rDNA[,2:ncol(rDNA)] = as.list(colSums(out2[,2:ncol(out2)]))
+rDNA
+
+out3 = rbind(out, rDNA)[c(1,2,4,3,5),]
+
+tab_df(out3,
+       col.header = names(out3),
        title = "Table 1. Summary statistics of segmental duplications in T2T CHM13 and GRCh38.",
        footnote = "peri: within 5 Mbp of the centromere; telo: within 500 kbp of the telomere; acro: within the short arms of the acrocentric chromosomes",
        show.footnote = TRUE, 
-       show.rownames = FALSE,
-       sort.column = -3,
-       file="Tables/table1.html")
+       show.rownames = FALSE )#sort.column = -3 )#, file="Tables/table1.html")
 
 #webshot("Tables/table1.html", "Tables/table1.pdf", vwidth = 1200, vheight = 200)
 #webshot("Tables/table1.html", "Tables/table1.png", vwidth = 1100, vheight = 200)
@@ -338,13 +383,24 @@ sum(rdna_rd.tab$`Expected kbp of uncollapsed sequence`)
 # largest duplicons in the genomes
 #
 #
+
+
+#Add the GC numbers
+gc = DUPLICON_GC 
+
 all_duplicons = rbind(DM, DM_38) %>% group_by(Assembly, duplicon, ancestral_position) %>%
-  summarise(count=n(), kbp=sum(end-start)/1e3) %>%
-  pivot_wider(names_from = Assembly, values_from = c(count, kbp), names_glue = "{Assembly} {.value}") %>%
-  arrange(- (`T2T CHM13 kbp` + `GRCh38 kbp`) ) %>%
+  summarise(count=n(), kbp=sum(end-start)/1e3, `average length (kbp)` = mean(end-start)/1e3 ) %>%
+  group_by(Assembly, duplicon, ancestral_position) %>%
+  pivot_wider(names_from = Assembly, values_from = c(count, kbp, `average length (kbp)`), names_glue = "{Assembly} {.value}") %>%
+  mutate(`Difference kbp` = `T2T CHM13 kbp` - `GRCh38 kbp`) %>%
+  arrange(- `Difference kbp` ) %>%
   mutate(larger = case_when( `T2T CHM13 kbp` >= `GRCh38 kbp` ~ "T2T CHM13", 
                              T ~ "GRCh38")
-         )
+         ) %>% 
+  left_join(gc) %>%
+  left_join(DM_GENES)
+
+data.table(all_duplicons)
 openxlsx::write.xlsx(
   list(`Largest duplicons`=all_duplicons),
   headerStyle = hs,numFmt = "COMMA", colWidths="auto", gridLines=FALSE, colNames = TRUE,
@@ -384,14 +440,10 @@ sum(hifirdna$`Expected bp of rDNA`)/1e6
 # write all output tables 
 #
 #
-hs <- createStyle(
-  textDecoration = "BOLD", fontColour = "#000000", fontSize = 12,
-  border="bottom", borderStyle="medium",halign="center"
-  #fontName = "Arial Narrow", fgFill = "#4F80BD"
-)
+
 
 openxlsx::write.xlsx(
-  list(`Table 1`=out),
+  list(`Table 1`=out3),
   headerStyle = hs,numFmt = "COMMA", colWidths="auto", gridLines=FALSE, colNames = TRUE,
   "~/Google Drive/My Drive/Vollger CHM13 T2T SDs 2020/Tables/Table1.xlsx")
 

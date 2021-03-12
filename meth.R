@@ -3,9 +3,16 @@ setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
 source("plotutils.R")
 
 
-df=METH_CLUSTERS
-
-
+SAMPLE=""
+SAMPLE="HG002"
+if(SAMPLE=="HG002"){
+  meth_and_transcript = METH_SD_GENES_002
+  df = METH_CLUSTERS_002
+}else{
+  meth_and_transcript = METH_SD_GENES
+  df = METH_CLUSTERS
+}
+in.df = meth_and_transcript
 
 
 mycol = function(x){
@@ -52,20 +59,53 @@ ggsave(glue("{SUPP}/meth_ideogram.pdf"), plot=meth_block_plot, height = 8*scale,
 
 
 #
+# both at the same time
+#
+df = METH_CLUSTERS[! chr %in% c("chrY", "chrY")]
+df = df[has_genes(df)]
+df$color = apply(df,1, mycol)
+meth<-toGRanges(df[clust_meth=="meth"])
+unmeth<-toGRanges(df[clust_meth!="meth"])
+
+df2 = METH_CLUSTERS_002[! chr %in% c("chrY", "chrY") ]
+df2 = df2[has_genes(df2)]
+df2$color = apply(df2,1, mycol)
+meth2<-toGRanges(df2[clust_meth=="meth"])
+unmeth2<-toGRanges(df2[clust_meth!="meth"])
+
+shared = data.table(copy(df))
+shared$both =  (df$clust_meth == df2$clust_meth)
+shared$color = "green"
+shared[both==FALSE]$color = "orange"
+shared[-has_genes(shared)]$color = "purple"
+
+meth_both_ideo=as.ggplot(expression(
+  kp <- plotKaryotype(genome = GENOME, chromosomes = NOM, cytobands = CYTO[CYTO$gieStain != "stalk"], plot.type = 2),
+  kpPlotRegions(kp, data=meth, col=meth$color, border = NEWCOLOR),
+  kpPlotRegions(kp, data=unmeth, col=unmeth$color, border = OLDCOLOR),
+  kpPlotRegions(kp, data=meth2, col=meth2$color, border = NEWCOLOR, data.panel = 2),
+  kpPlotRegions(kp, data=unmeth2, col=unmeth2$color, border = OLDCOLOR, data.panel = 2),
+  kpPlotRegions(kp, data=toGRanges(shared), col=shared$color, data.panel = "ideogram")
+))+theme_nothing(); meth_both_ideo
+
+sum(width(toGRanges(shared[both==T])))/1e6
+sum(width(toGRanges(shared[both==F])))/1e6
+sum(shared$both)
+sum(!shared$both)
+
+cor.test(df$avgmeth, df2$avgmeth, method = "spearman")
+cor.test(df$avgmeth, df2$avgmeth, method = "pearson")
+
+#cor.test(as.factor(df$clust_meth), as.factor(df2$clust_meth))
+
+#
 #
 #
 # meth genes plots
 #
 #
 #
-SAMPLE="HG002"
-SAMPLE=""
-if(SAMPLE=="HG002"){
-  meth_and_transcript = METH_SD_GENES_002
-}else{
-  meth_and_transcript = METH_SD_GENES
-}
-in.df = meth_and_transcript
+
 
 # summarize data by gene
 in.df$quartile = cut(in.df$n_transcripts, breaks = c(0,1,10,Inf), include.lowest = T, right = F)

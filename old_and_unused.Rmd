@@ -1,0 +1,128 @@
+---
+title: "Used code from t2t chm13sd"
+author: "Mitchell R. Vollger"
+date: "2/19/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# old bad Circular SD plot
+```{r circos}
+source("plotutils.R")
+sedef=SEDEF
+duplicons = DM_BED
+enriched = ENRICHED[,1:4]
+cyto.df = data.frame(CYTO)[, c("seqnames","start","end","seqnames","gieStain")]
+set.seed(3)
+chr_bg_color = rand_color(length(cyto.df$seqnames), transparency = 0.6)
+names(chr_bg_color) =cyto.df$seqnames
+
+
+plotname="circos.pdf"
+if("acro"=="acrox"){
+  #cyto.df = cyto.df[cyto.df$seqnames %in% ACHRO,]
+  #cyto.df$end[cyto.df$end > 20e6]=20e6
+  sedef=sedef[chr %in% ACHRO | chr2 %in% ACHRO]
+  highest_achro = sedef %>% 
+    mutate(xx=pmin(as.character(chr), as.character(chr2)), yy = pmax(as.character(chr), as.character(chr2))) %>%
+    group_by(xx,yy) %>% 
+    summarise(total=sum(alnB)) %>% 
+    arrange(-total) %>% 
+    head(20)
+    #filter(total>1e6)
+  names=unique(c(highest_achro$xx, highest_achro$yy));names;length(names)
+
+  sedef=sedef[chr %in% names & chr2 %in% names]
+  cyto.df=cyto.df[cyto.df$seqnames %in%  names,]
+  duplicons=duplicons[chr %in% names]
+  enriched = enriched[chr %in% names & end-start > 100000]
+  plotname="circos_acro_enriched.pdf"
+} else if("fast"=="faxst"){
+  N=1000
+  duplicons=duplicons[sample(.N,N)]
+  sedef=sedef[sample(.N,N)]
+  plotname="circos_test.pdf"
+} else{
+  enriched=enriched[end-start > 1000000]
+}
+
+cyto.df$seqnames = as.character(cyto.df$seqnames)
+
+sedef=sedef[order(aln_len)]
+print(dim(sedef))
+print(sum(paste(sedef$chr,sedef$start1) > paste(sedef$chr2, sedef$start2)))
+
+sedef.inter=sedef[chr != chr2 ]
+sedef.intra=sedef[chr == chr2 & chr > chr2]
+
+new = overlap_either(sedef.inter, NEW)
+sedef.inter$color = GRAY
+sedef.inter$color[new] = NEWCOLOR
+
+sdcolor=function(df, amount=0.5){
+  color=rep("#000000", nrow(df))
+  color[df$aln_len >= 10000 & df$fracMatch > 0.95]="#FF0000"
+  return(transparent(color, amount = amount))
+}
+
+convert_data = function(bed, conversion){
+  which_region <- function(row) {
+    matches = conversion[row["chr"] == conversion$chr & row["end"] >= conversion$start & row["start"] <= conversion$end ]; 
+    label=matches$label[1]
+    return(label)
+  }
+  #bed$label = apply(bed[, 1:3], 1, which_region)
+  #bed = bed[!is.na(bed$label)]
+  tmp = data.table(data.frame(second(do_bedtools_intersect(toGRanges(bed), toGRanges(conversion[,4:6],f=1.0),  loj = TRUE))))
+  cond= tmp$end != -1
+  keep = tmp[cond]
+  bed=bed[cond]
+  bed$label=paste(paste(keep$seqnames, keep$start, sep=":"), keep$end, sep="-")
+  return(bed)
+}
+
+f1 = function(){
+  gap.degree=360/(4*length(unique(cyto.df$seqnames))); gap.degree
+  circos.par(cell.padding = c(0, 0, 0, 0), gap.degree=gap.degree)
+  circos.initializeWithIdeogram(cyto.df, ideogram.height = .05 )
+  #circos.genomicRect(enriched[,1:3], ybottom =0, ytop=1, border = NA, col="red")
+  #circos.genomicRainfall(sedef[,1:3])
+  #circos.genomicRainfall(sedef.inter[,1:3]);  circos.genomicRainfall(sedef.inter[,c("chr2","start2", "end2")])
+  circos.genomicLink(sedef.inter[,c("chr","start", "end")], sedef.inter[,c("chr2","start2", "end2")], border=NA, col=sedef.inter$color)#col=sdcolor(sedef.inter, amount = 0.35))
+};
+f2 = function(){
+  gap.degree=360/(4*length(conversion$label)); gap.degree
+  circos.par(cell.padding = c(0, 0, 0, 0), track.height=0.1, gap.degree=gap.degree)
+  circos.initialize(factors=conversion$label, xlim = conversion[,c(2,3)] )
+  color = sapply(strsplit(zoomed_data$V9, ","), function(x) rgb(x[1], x[2], x[3], maxColorValue=255) )
+  #circos.track(conversion$label, ylim=c(0,1))
+  #circos.genomicRect(zoomed_data[,c("label","start","end")], ybottom=0, ytop=1, border = NA, col=color)
+  YMAX = max(zoomed_data$end)
+  circos.track(zoomed_data$label, x = zoomed_data$start, y = zoomed_data$end,
+    panel.fun = function(x, y) {
+      l = zoomed_data$label == CELL_META$sector.index
+      circos.rect(x, 2, y, YMAX, col=color[l], border=NA)
+    }
+  )
+}
+
+enriched$label=paste(paste(enriched$chr, enriched$start, sep=":"), enriched$end, sep="-")
+conversion=unique(enriched[,c("label","start","end","chr")])
+conversion$label=as.character(conversion$label)
+conversion$start2=conversion$start
+conversion$end2 = conversion$end
+zoomed_data = convert_data(duplicons, conversion)
+
+
+DIM = 7
+pdf(paste0("simple_", plotname), height = DIM, width =DIM)
+f1()
+dev.off()
+
+pdf(plotname, height =DIM, width = DIM)
+circos.nested(f2, f1, conversion, connection_col =chr_bg_color[conversion[[4]]], connection_height=0.2, connection_border = NA)
+dev.off()
+```

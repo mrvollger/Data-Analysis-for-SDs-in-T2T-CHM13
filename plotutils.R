@@ -127,6 +127,8 @@ rgntag = function(q,r, tag, minoverlap=0, mincov=0.5, rreduce=FALSE){
 }
 
 overlaps = function(q,r, minoverlap=0, mincov=0.0, rreduce=FALSE){
+  q = as.data.table(q)
+  r = as.data.table(r)
   colnames(q)[1:3]=c("chr","start","end")
   if(rreduce){
     q = data.table(data.frame(GenomicRanges::reduce(toGRanges(q))))
@@ -137,6 +139,7 @@ overlaps = function(q,r, minoverlap=0, mincov=0.0, rreduce=FALSE){
   overlaps = (c$fraction > mincov) & (c$covered > minoverlap)
   return(overlaps)
 }
+
 overlap_either= function(q,r, minoverlap=250, mincov=0.25, rreduce=FALSE){
   #q=sedef; r=NEW
   o1 = overlaps(q[,c("chr","start","end")], r, minoverlap=minoverlap, mincov=mincov, rreduce=FALSE)
@@ -171,11 +174,11 @@ addchr=function(yy=0){
 }
 
 bedlength=function(df, merge=TRUE){
-  print("hi")
+  gr = GRanges(as.data.table(df))
   if(merge){
-    x = sum(width(GenomicRanges::reduce(toGRanges(data.table(df)))))
+    x = sum(width(GenomicRanges::reduce(gr)))
   } else {
-    x = sum(width(toGRanges(data.table(df))))
+    x = sum(width(gr))
   }
   x
 }

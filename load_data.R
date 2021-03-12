@@ -75,8 +75,10 @@ if(F){
   
   DM_BED = readbed("data/{V}_dupmasker_colors.bed", "T2T CHM13")
   DM = readbed("data/{V}.duplicons.bed", "T2T CHM13")
+  DUPLICON_GC = fread("data/gc_duplicon_map.tbl")
   DM_38 = readbed("data/hg38.chr_only.duplicons.bed", "GRCh38")
 
+  
   SEDEF = readbed("data/{V}.SDs.bed", "T2T CHM13")
   NONR_SD = GenomicRanges::reduce(toGRanges(SEDEF))
   SEDEF = rgntag(SEDEF, DM, "Duplicon")
@@ -118,6 +120,19 @@ if(F){
   PROBE_MAPPINGS = readbed("data/probe.mappings.bed", "probes")
   PROBE_RESULTS = fread("data/probe.results.csv")
   
+  #
+  # ALL PAV 
+  #
+  tmpSNVs = readbed("../PAV/20210213/results/GRCh38_chrOnly/bed/snv_snv.bed.gz", "Non SD")
+  tmpINS = readbed("../PAV/20210213/results/GRCh38_chrOnly/bed/sv_ins.bed.gz", "Non SD")
+  tmpDEL = readbed("../PAV/20210213/results/GRCh38_chrOnly/bed/sv_del.bed.gz", "Non SD")
+  tmpINV = readbed("../PAV/20210213/results/GRCh38_chrOnly/bed/sv_inv.bed.gz", "Non SD")
+  tmpIndelDEL = readbed("../PAV/20210213/results/GRCh38_chrOnly/bed/indel_del.bed.gz", "Non SD")
+  tmpIndelINS = readbed("../PAV/20210213/results/GRCh38_chrOnly/bed/indel_ins.bed.gz", "Non SD")
+  ALLPAV = rbind(tmpSNVs, tmpINS, tmpDEL, tmpINV, tmpIndelDEL, tmpIndelINS, fill=T) %>% 
+    filter( !grepl("N", ALT) & chr %in% NOYM) %>%
+    data.table()
+  
   save.image(glue("{LOCAL_DATA}/plotutils.data"), compress = FALSE)
 } else {
   load(glue("{LOCAL_DATA}/plotutils.data"))
@@ -129,9 +144,7 @@ if(F){
 
 if(F){
   METH_SD_GENES = fread(glue("data/sd.transcripts.10kb_methAG.bed.gz"))
-  METH_SD_GENES_002 = fread(glue("data/sd.HG002transcripts.10kb_methAG.bed.gz"))
   METH_CLUSTERS = fread("data/t2t_chm13v1.0_SD_clustered_methylation.bed")
-  METH_CLUSTERS_002 = fread("data/t2t_HG002_SD_clustered_methylation.bed")
   
   METH_JUST_GENES = readbed("data/sd.transcripts.and.meth.bed","z")
   CPG_DATA =  fread("data/scaled_binned_slop_genes.cpg.bed") 
@@ -139,11 +152,51 @@ if(F){
   save(METH_SD_GENES, METH_CLUSTERS, METH_SD_GENES_002, METH_CLUSTERS_002, METH_JUST_GENES, CPG_DATA,
        file = glue("{LOCAL_DATA}/meth.data"))
 }else if (F){
+  # load HG002 data 
+  METH_SD_GENES_002 = fread(glue("data/sd.HG002transcripts.10kb_methAG.bed.gz"))
+  METH_CLUSTERS_002 = fread("data/HG002_toCHM13_SD_clustered_methylation.bed")
+  METH_CLUSTERS_BP_002 = fread("data/HG002_toCHM13_SD_clustered_methylationPerBase.bed")
+  
+  save(METH_SD_GENES_002, 
+       METH_CLUSTERS_002,
+       METH_CLUSTERS_BP_002,
+       file = glue("{LOCAL_DATA}/HG002.meth.data"))
+  
+}else if (F){
   load(glue("{LOCAL_DATA}/meth.data"))
+  load(glue("{LOCAL_DATA}/HG002.meth.data"))
+  
 }
 
 
 
+if(F){
+  #FASTA <- FaFile("../assemblies/chm13.draft_v1.0_plus38Y.fasta")
+  open(FASTA)
+  tmp = fread("../duplicons_gc/dm.nuc.bed")
+  colnames(tmp)[1:ncol(DM)] = colnames(DM) 
+  tmp$chr  = factor(tmp$chr, levels = sort(CHRS))
+  tmp = tmp %>%arrange(chr, start)
+  gcsum = tmp %>% group_by(duplicon) %>%
+    summarise( `% GC` = 100 * mean( (`15_num_C` + `16_num_G`)/`20_seq_len` )  ) %>% data.table()
+  write.table(gcsum, file="data/gc_duplicon_map.tbl",sep="\t", quote = F, row.names = F)
 
+  
+  s = tmp[1:1e5]
+  letterFrequency(getSeq(FASTA, GRanges(s)), "GC")[,1]/width(s)
+}
 
-
+#
+#  OPEN FILES 
+#
+if(F){
+  file.edit('plotutils.R')
+  file.edit('Vollger_CHM13_T2T.Rmd')
+  file.edit('Table1.R')
+  file.edit("Divergence.R")
+  file.edit("wssd_sub_regions.R")
+  
+  file.edit("meth_clustered.R")
+  file.edit("meth.R")
+  file.edit("meth_clustered.Rmd")
+}
