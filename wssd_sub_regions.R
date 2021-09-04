@@ -135,7 +135,7 @@ ecdf_cn_plot = ggdraw() +
             x=1, y=1, hjust = 1, vjust = 1.25, halign = 1, valign = 1)
 ecdf_cn_plot
 
-ggsave(glue("{SUPP}/wssd_ecdf.pdf"), width = 12, height = 8, plot=ecdf_cn_plot)
+my_ggsave(glue("{SUPP}/wssd_ecdf.pdf"), plot=ecdf_cn_plot, width = 12, height = 8)
 
 
 #
@@ -158,7 +158,7 @@ p = ggplot(data=rdg%>% mutate(diff=case_when(diff>maxcn ~ maxcn, diff < -maxcn ~
   scale_y_continuous(labels = comma) +
   scale_x_continuous(labels =  c(glue("-{maxcn}+"),(1-maxcn):(maxcn-1), glue("{maxcn}+") ), breaks = -maxcn:maxcn) +
   coord_cartesian(xlim=c(-maxcn,maxcn))+ theme_cowplot() + theme(legend.position = "none");p
-ggsave(glue("{SUPP}/wssd_cn_diff_hist.pdf"), width = 12, height = 8, plot=p)
+my_ggsave(glue("{SUPP}/wssd_cn_diff_hist.pdf"), width = 12, height = 8, plot=p)
 
 
 #
@@ -178,7 +178,7 @@ kpPlotRegions(kp,
               col=rgn.df$region_color[rgn.df$status!="Equal CN"], 
               ylim = n.sms, data.panel = "ideogram", r0=0.2, r1=0.8, border = NA)
 )); ideo
-ggsave(glue("{SUPP}/wssd_ideo_exact_hist.pdf"), width = 12, height = 8, plot=ideo)
+my_ggsave(glue("{SUPP}/wssd_ideo_exact_hist.pdf"), width = 12, height = 8, plot=ideo)
 
 
 #
@@ -193,7 +193,7 @@ p3 = ggplot(data=t1) + geom_bar(aes(x=winner, y=count, fill=winner), stat = "ide
   scale_y_continuous(label=comma)+
   ylab("# of sample genotypes with CN closer to CHM13 or GRCh38") + xlab("") +
   theme(legend.position = "none") ;p3
-ggsave(glue("{SUPP}/wssd_sample_closer_hist.pdf"), width = 8, height = 8, plot=p3)
+my_ggsave(glue("{SUPP}/wssd_sample_closer_hist.pdf"), width = 8, height = 8, plot=p3)
 
 p4 = ggplot(data=t2) + geom_bar(aes(y=status, x=count, fill=status), stat = "identity") + 
   geom_text(aes(label=count, y=status, x=count), vjust=-1, angle=0) +
@@ -223,7 +223,7 @@ map <- ggplot(world, aes(long, lat)) +
   geom_scatterpie_legend(zz_extra$radius, x=-160, y=-55, labeller = function(x){x*x/sizescale} ) +
   scale_fill_manual(values=colors) + theme_map() + ylab("Latitude") + xlab("longitude") + theme(legend.position = "top", legend.title = element_blank(), legend.justification = "center"); map
 
-ggsave(glue("{SUPP}/wssd_map.pdf"), width = 12, height = 8, plot=map)
+my_ggsave(glue("{SUPP}/wssd_map.pdf"), width = 12, height = 8, plot=map)
 
 
 #
@@ -240,7 +240,7 @@ bp_hist = ggplot(data=rgn.df,
   xlab("") + ylab("# of Mbp where more samples have CN\ngenotypes equal to the reference") +
   theme(legend.position = "none")
 bp_hist
-ggsave(glue("{SUPP}/wssd_bp_hist.pdf"), width = 8, height = 8, plot=bp_hist)
+my_ggsave(glue("{SUPP}/wssd_bp_hist.pdf"), width = 8, height = 8, plot=bp_hist)
 
 bp_hist_std = ggplot(data=rgn.df,
        aes(x=status_std, weight=end-start, fill=status_std) 
@@ -253,5 +253,5 @@ bp_hist_std = ggplot(data=rgn.df,
   xlab("") + ylab(glue("# of bp where the reference is within the median CN +/- {n_stds} sd")) +
   theme(legend.position = "none")
 bp_hist_std
-ggsave(glue("{SUPP}/wssd_bp_hist_std.pdf"), width = 8, height = 8, plot=bp_hist_std)
+my_ggsave(glue("{SUPP}/wssd_bp_hist_std.pdf"), width = 8, height = 8, plot=bp_hist_std)
 

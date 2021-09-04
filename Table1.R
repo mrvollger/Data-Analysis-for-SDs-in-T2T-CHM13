@@ -208,8 +208,8 @@ tab_df(core_afr_cn.df,
 #
 #
 #
-stats.df = fread("../assemblies_for_anlysis/sample_info/sd_freeze_asm_stats.tbl")
-asm.df = merge(fread("../assemblies_for_anlysis/sample_info/Master_SD_freeze.tbl"),stats.df, by.x="fasta", by.y="file") 
+stats.df = fread("data/Table_data/sd_freeze_asm_stats.tbl")
+asm.df = merge(fread("data/Table_data/Master_SD_freeze.tbl"),stats.df, by.x="fasta", by.y="file") 
 asm.df[sample =="GRCh38chrOnly"]$sample="GRCh38"
 
 
@@ -258,12 +258,12 @@ tab_df(asm.tbl,
 # Loci of interest 
 #
 #
-pull.df = fread("../sd_regions_in_hifi_wga/pull_by_regions_snake_results/pull_sd_regions/results.tbl")
+pull.df = fread("data/Table_data/results.tbl")
 pull.df$N = nrow(unique(pull.df[Species=="Human",c("sm","hap")])) - 1 # for hg38
 pull.df[Species != "Human"]$N = 2
 
 
-fs = Sys.glob("../sd_regions_in_hifi_wga/pull_by_regions_snake_results/pull_sd_regions/Minigraph/*.fai")
+fs = Sys.glob("data/Table_data/Minigraph/*.fai")
 rgns = gsub(".all.fasta.fai", "", basename(fs))
 l <- lapply(fs, fread, sep="\t")
 names(l)=rgns
@@ -297,7 +297,7 @@ pull.tbl = pull.df %>% filter(Region!="SRGAP2B_D" & Region != "SRGAP2C" & Region
             `% heterozygous haplotypes` = 100*sum(!is.na(V5))/(`# resolved haplotypes`+1)
             )
 
-be_coords = fread("../sd_regions_in_hifi_wga/pull_by_regions_snake_results/regions.bed", col.names = c("chr", "start","end","Region"))
+be_coords = fread("data/Table_data/regions.bed", col.names = c("chr", "start","end","Region"))
 
 pull.tbl=merge(pull.tbl, be_coords, all.x=T)
 
@@ -312,7 +312,7 @@ p.length.vs.resolved = pull.tbl %>% ggplot(aes(x=`% resolved`,
   annotation_logticks(sides="l")+
   ggrepel::geom_label_repel()+
   theme_cowplot()
-ggsave("~/Desktop/length_vs_resolved_fraction.pdf", height=6, width = 6, plot=p.length.vs.resolved)
+my_ggsave(glue("{SUPP}/length_vs_resolved_fraction.pdf"), plot=p.length.vs.resolved, height=6, width = 6)
 
 tab_df(pull.tbl,
        title = "Table 2. Assemblies of evolutionary and biomedically important loci",
@@ -326,7 +326,7 @@ tab_df(pull.tbl,
 # SVs in the evolutionary loci
 #
 #
-sv = fread("../sd_regions_in_hifi_wga/pull_by_regions_snake_results/pull_sd_regions/sv.results.tbl")
+sv = fread("data/Table_data/sv.results.tbl")
 colnames(sv)[1:6] = c("contig", "SV.start", "SV.end", "bubble.contig", "bubble.start", "bubble.end")
 sv.tab = sv %>% filter(description != "Syntenic") %>%
   filter(!(region == "NOTCH2NL" & length < 50000 & contig == "HG03125.mat__1")) %>%
@@ -340,9 +340,9 @@ sv.tab = sv %>% filter(description != "Syntenic") %>%
   mutate(`All SV kbp`= sum(total_kbp_DEL,total_kbp_INS, total_kbp_INV, na.rm=T)) %>%
   mutate(`Total # SVs`= sum(`#_DEL`,`#_INS`, `#_INV`, na.rm=T))%>%
   relocate(haplotypes, .after = last_col()) %>%
-  relocate(`Total # SVs`, .after = `# of haps`)%>%
-  relocate(`All SV kbp`, .after = `# of haps`) %>%
-  replace_na(value = 0)
+  relocate(`Total # SVs`, .after = `# of haps`) %>%
+  relocate(`All SV kbp`, .after = `# of haps`) 
+#%>%  replace_na(replace = 0)
   
 
 #

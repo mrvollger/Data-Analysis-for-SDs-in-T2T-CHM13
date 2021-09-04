@@ -22,9 +22,9 @@ FAI$chr = factor(FAI$chr, levels =  c(CHRS, unique(FAI$chr[which(!FAI$chr %in% C
 # output directories
 FIGURE_DIR="~/Google Drive/My Drive/Vollger CHM13 T2T SDs 2020/Figures"
 SUPP="~/Google Drive/My Drive/Vollger CHM13 T2T SDs 2020/Figures/Misc"
-SUPP="~/mvollger@uw.edu\ -\ Google\ Drive/My\ Drive/Vollger\ CHM13\ T2T\ SDs\ 2020/Figures/added-after-2021-09-04/figures"
+SUPP="~/mvollger@uw.edu - Google Drive/My Drive/Vollger CHM13 T2T SDs 2020/added-after-2021-09-04/Figures/"
 TABLES="~/Google Drive/My Drive/Vollger CHM13 T2T SDs 2020/Tables/Misc"
-SUPP="~/mvollger@uw.edu\ -\ Google\ Drive/My\ Drive/Vollger\ CHM13\ T2T\ SDs\ 2020/Figures/added-after-2021-09-04/tables"
+TABLES="~/mvollger@uw.edu - Google Drive/My Drive/Vollger CHM13 T2T SDs 2020/added-after-2021-09-04/Tables/"
 LOCAL_DATA="~/Desktop/Rdata"
 
 #

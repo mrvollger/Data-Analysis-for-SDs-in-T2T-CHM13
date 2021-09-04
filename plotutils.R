@@ -360,8 +360,8 @@ length_stats <- function(df){
 
 
 my_ggsave <- function(filename, plot = last_plot(), ...){
+  ggsave(filename, plot=plot, ...)
   basename = file_path_sans_ext(filename)
   table_out = paste0(basename, ".datatable.tsv")
   write.table(plot$data, file=table_out, sep="\t", row.names = F, quote = F)
-  ggsave(filename, plot=plot, ...)
 }
