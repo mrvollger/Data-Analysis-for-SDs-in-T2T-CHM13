@@ -22,8 +22,9 @@ FAI$chr = factor(FAI$chr, levels =  c(CHRS, unique(FAI$chr[which(!FAI$chr %in% C
 # output directories
 FIGURE_DIR="~/Google Drive/My Drive/Vollger CHM13 T2T SDs 2020/Figures"
 SUPP="~/Google Drive/My Drive/Vollger CHM13 T2T SDs 2020/Figures/Misc"
-SUPP="~/mvollger@uw.edu\ -\ Google\ Drive/My\ Drive/Vollger\ CHM13\ T2T\ SDs\ 2020/Figures/added-after-2021-09-04"
+SUPP="~/mvollger@uw.edu\ -\ Google\ Drive/My\ Drive/Vollger\ CHM13\ T2T\ SDs\ 2020/Figures/added-after-2021-09-04/figures"
 TABLES="~/Google Drive/My Drive/Vollger CHM13 T2T SDs 2020/Tables/Misc"
+SUPP="~/mvollger@uw.edu\ -\ Google\ Drive/My\ Drive/Vollger\ CHM13\ T2T\ SDs\ 2020/Figures/added-after-2021-09-04/tables"
 LOCAL_DATA="~/Desktop/Rdata"
 
 #
@@ -67,9 +68,9 @@ if(F){
   NEW=grtodf(GenomicRanges::setdiff(GenomicRanges::reduce(GENOME),toGRanges(synt)))
   NEW=NEW[!NEW$chr %in% c("chrY", "chrMT","chrM", NA)]
   
-  GENES_V1.1=readbed(glue("../Assembly_analysis/Liftoff/chm13_v1.1_plus38Y.orf_only.bed"), "GENES")
+  GENES_V1.1=readbed(glue("data/T2T-CHM13_v1.1/chm13_v1.1_plus38Y.orf_only.bed"), "GENES")
   GENES_V1.1$gene=GENES_V1.1$V4
-  ALL_GENES_V1.1=readbed(glue("../Assembly_analysis/Liftoff/chm13_v1.1_plus38Y.all.bed"), "GENES")
+  ALL_GENES_V1.1=readbed(glue("data/T2T-CHM13_v1.1/chm13_v1.1_plus38Y.all.bed"), "GENES")
   ALL_GENES_V1.1$gene=ALL_GENES_V1.1$V4
   
   GENES=readbed(glue("data/{V}.orf_only.bed"), "GENES")
@@ -80,7 +81,7 @@ if(F){
   RM = readbed("data/{V}_repeatmasker.out.bed", "T2T CHM13", rm=T)
   SAT = RM[RM$type == "Satellite"]
   
-  RM_V1.1 = readbed("../Assembly_analysis/Masked/chm13_v1.1_plus38Y_repeatmasker.out.bed", "T2T CHM13 v1.1", rm=T)
+  RM_V1.1 = readbed("data/T2T-CHM13_v1.1/chm13_v1.1_plus38Y_repeatmasker.out.bed", "T2T CHM13 v1.1", rm=T)
   SAT_V1.1 = RM[RM$type == "Satellite"]
   
   
