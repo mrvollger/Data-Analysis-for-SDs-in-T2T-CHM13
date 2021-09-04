@@ -257,6 +257,7 @@ make_minigraph_figure = function(gene, search_gene, simple_gene){
   gfa_h = 400*length(unique(df$q))
   
   system(glue("{BANDAGE_PATH}/Bandage image {GFA} temp/{gene}.png --linear --height {gfa_h}  --colors temp/tmp.gfa.csv"))
+  print(glue("{BANDAGE_PATH}/Bandage image {GFA} temp/{gene}.png --linear --height {gfa_h}  --colors temp/tmp.gfa.csv"))
   system(glue("convert temp/{gene}.png -rotate 90 temp/{gene}.r.png"))
   #system(glue("rm temp/{gene}.png temp/tmp.gfa.csv"))
   graph_figure = ggdraw() + draw_image(glue("temp/{gene}.r.png"))
@@ -313,7 +314,19 @@ DATA_DIR = "../orthology_analysis/TBC1D3/minigraph/pull_sd_regions"
 DATA_DIR = "../sd_regions_in_hifi_wga/pull_by_regions_snake_results/pull_sd_regions"
 BANDAGE_PATH = "~/software/Bandage//Bandage.app/Contents/MacOS/"
 FIGURE_DIR="~/Google Drive/My Drive/Vollger CHM13 T2T SDs 2020/Figures/"
+FIGURE_DIR="~/Desktop/"
 
+if(F){
+  DATA_DIR = "../acro_minigraph/"
+  FIGURE_DIR="~/Desktop/"
+  make_minigraph_figure("acrop", "acrop", "acrop")
+}
+if(F){
+  DATA_DIR = "../sd_regions_in_hifi_wga/CYP2D6/pull_sd_regions/"
+  FIGURE_DIR="~/Desktop/"
+  make_minigraph_figure("DMBT1", "DMBT1", "DMBT1")
+}
+if(F){
 # READ HERE!!!!!!!!!!!!
 #
 # set up a gene name 
@@ -321,11 +334,11 @@ FIGURE_DIR="~/Google Drive/My Drive/Vollger CHM13 T2T SDs 2020/Figures/"
 # gene = "region you name you used in pull_region"
 # search_gene = "gene\pattern to search for in the gene file"
 # simple_gene = "title for plot: variation in {simple_gene}"
+make_minigraph_figure("CYP2D6", "CYP2D","CYP2D6")
 make_minigraph_figure("TBC1D3_1", "TBC1D3", "TBC1D3 (1)")
 make_minigraph_figure("TBC1D3_2", "TBC1D3", "TBC1D3 (2)")
 #make_minigraph_figure("middle_TBC1D3_unique_sequence", "TBC1D3","between TBC1D3 site 1 and 2")
 make_minigraph_figure("SMN", "SMN","SMN")
-make_minigraph_figure("CYP2D6", "CYP2D","CYP2D6")
 make_minigraph_figure("ARHGAP11", "ARHGAP11","ARHGAP11")
 make_minigraph_figure("BOLA2_NPIPB", "BOLA2","BOLA2")
 make_minigraph_figure("NOTCH2", "NOTCH2","NOTCH2")
@@ -333,9 +346,7 @@ make_minigraph_figure("NOTCH2NL", "NOTCH2NL","NOTCH2NL")
 make_minigraph_figure("TCAF2", "TCAF","TCAF")
 make_minigraph_figure("LPA", "LPA","LPA")
 make_minigraph_figure("SRGAP2C","SRGAP2","SRGAP2")
-
+}
 # SRGAP2A has zero heterozygosity, ignore. 
 #gene="SRGAP2A"; search_gene = "SRGAP2"; simple_gene="SRGAP2"
 #make_minigraph_figure("SRGAP2A","SRGAP2","SRGAP2")
-
-gene = ""

@@ -56,16 +56,25 @@ new_or_sv = copy(SEDEF[overlaps(SEDEF, NEW)])
 new_or_sv$Assembly = "New or structurally variable"
 
 
+table_1_order = c("T2T CHM13",                    
+           "GRCh38",     
+           "Difference",
+           "New or structurally variable",
+           "T2T CHM13 v1.1")
 
-out = rbind(SEDEF, SEDEF_38, new_or_sv) %>% 
+out = rbind(SEDEF, SEDEF_38, new_or_sv, SEDEF_V1.1, fill=TRUE) %>% 
+  #filter( chr != "chrY" & chr2 != "chrY" ) %>%
+  filter( chr != "chrY" ) %>%
   group_by(Assembly) %>%
   group_modify( ~ my_sum(.x)) %>%
   ungroup() %>% 
-  arrange(-`SD (Mbp)`)
+  arrange(-`SD (Mbp)`) %>%
+  data.table()
 
-out[3,c("Gbp","% SD")] = list(nonr(NEW)/1e3, nonr(new_or_sv)/(nonr(NEW))*100)
-diff = tibble(Assembly="Difference", out[1,2:length(out)] - out[2,2:length(out)] )
-out=rbind(out,diff)
+out[4,c("Gbp","% SD")] = list(nonr(NEW)/1e3, nonr(new_or_sv)/(nonr(NEW))*100)
+diff = tibble(Assembly="Difference", out[Assembly == "T2T CHM13",2:length(out)] - out[Assembly == "GRCh38",2:length(out)] )
+out=rbind(out,diff) %>% mutate(Assembly = factor(Assembly, levels = table_1_order)) %>% arrange(Assembly)
+out
 
 
 z="
@@ -117,10 +126,10 @@ rDNA
 
 out3 = rbind(out, rDNA)[c(1,2,4,3,5),]
 
-tab_df(out3,
-       col.header = names(out3),
+tab_df(out,
+       col.header = names(out),
        title = "Table 1. Summary statistics of segmental duplications in T2T CHM13 and GRCh38.",
-       footnote = "peri: within 5 Mbp of the centromere; telo: within 500 kbp of the telomere; acro: within the short arms of the acrocentric chromosomes",
+       footnote = "peri: within 5 Mbp of the centromere; telo: within 500 kbp of the telomere; acro: within the short arms of the acrocentric chromosomes. GRCh38 contains 149,690,719 Ns included in the Gbp estimate.",
        show.footnote = TRUE, 
        show.rownames = FALSE )#sort.column = -3 )#, file="Tables/table1.html")
 
@@ -265,6 +274,13 @@ het.df <- bind_rows(l, .id="Region") %>%
   separate(sm,c("sm", "Species"), sep = "_") %>%
   tidyr::replace_na(list(Species="Human")); het.df
 
+het.df %>% group_by(Region) %>%
+  mutate( n=sum(count) ) %>% 
+  summarise(
+    Heterozygosity = 100-sum((count/n)^2)*100,
+    n=n()
+)
+  
 
 pull.df = merge(pull.df, het.df, all.x=T)
 
@@ -284,6 +300,19 @@ pull.tbl = pull.df %>% filter(Region!="SRGAP2B_D" & Region != "SRGAP2C" & Region
 be_coords = fread("../sd_regions_in_hifi_wga/pull_by_regions_snake_results/regions.bed", col.names = c("chr", "start","end","Region"))
 
 pull.tbl=merge(pull.tbl, be_coords, all.x=T)
+
+p.length.vs.resolved = pull.tbl %>% ggplot(aes(x=`% resolved`, 
+                        y=as.numeric(
+                              gsub(",","",`Average length (kbp)`)
+                              ),
+                        label = Region)
+                    )+
+  geom_point()+
+  scale_y_continuous("Average length (kbp)", labels = comma, trans="log10")+
+  annotation_logticks(sides="l")+
+  ggrepel::geom_label_repel()+
+  theme_cowplot()
+ggsave("~/Desktop/length_vs_resolved_fraction.pdf", height=6, width = 6, plot=p.length.vs.resolved)
 
 tab_df(pull.tbl,
        title = "Table 2. Assemblies of evolutionary and biomedically important loci",
@@ -443,9 +472,10 @@ sum(hifirdna$`Expected bp of rDNA`)/1e6
 
 
 openxlsx::write.xlsx(
-  list(`Table 1`=out3),
+  list(`Table 1`=out),
   headerStyle = hs,numFmt = "COMMA", colWidths="auto", gridLines=FALSE, colNames = TRUE,
-  "~/Google Drive/My Drive/Vollger CHM13 T2T SDs 2020/Tables/Table1.xlsx")
+  "~/Desktop/withoutY.xlsx")
+  #"~/Google Drive/My Drive/Vollger CHM13 T2T SDs 2020/Tables/Table1.xlsx")
 
 openxlsx::write.xlsx(
   list(`Core Duplicon CN in AFR vs non-AFR`=core_afr_cn.df),

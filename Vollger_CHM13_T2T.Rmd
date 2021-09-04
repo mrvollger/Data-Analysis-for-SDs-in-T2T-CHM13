@@ -241,7 +241,7 @@ probe_tbl= ggplot(data=results %>% filter(Sample!="Assembly SD" & Sample!="Assem
         )+
   panel_border(); probe_tbl
 
-ggsave(glue("{SUPP}/dup_probe_tbl.pdf"), height = 10, width = 16, plot = probe_tbl)
+ggsave(glue("{SUPP}/dup_probe_tbl.pdf"), height = 12, width = 12, plot = probe_tbl)
 
 fix_het =results%>% 
   filter(Sample!="Assembly SD" & Sample!="Assembly low ID") %>%
@@ -314,6 +314,18 @@ intra <- intra[order(-color)]
 #
 # regions for genomic instablity
 #
+zzz=as.data.table(
+  reduce(
+    toGRanges(
+      SEDEF[ chr==chr2 & start < start2 & fracMatch > 0.94 & alnB >=10000 & abs(start-start2) < 10e6 & abs(start-start2) > 50000] %>%
+        dplyr::select(chr, start, end2)
+            )
+       )
+  )
+
+bedlength(zzz)/1e6
+fwrite(zzz,file="~/Desktop/pgi.bed", sep="\t", col.names = F, row.names = F, quote = F)
+
 gi.new.df = intra[intra.new ]%>% filter( fracMatch >= 0.95 & alnB >=10000 & abs(start-start2) < 10e6 & abs(start-start2) > 50000 ) %>% dplyr::select(chr, start, end2)
 #write.table(gi.new.df, file = "supp/GenomicInstabilityRegions_new.bed", sep="\t", quote = F, row.names = F, col.names = F)
 gi.new <- toGRanges(gi.new.df )
@@ -602,10 +614,12 @@ ggsave(glue("{SUPP}/right_figure_1_legend.pdf"), plot=get_legend(by_all), width 
 #
 # load other plots
 # 
-source("wssd_sub_regions.R")
+if(F){
+  source("wssd_sub_regions.R")
+  source("Divergence.R")
+}
 rdg_colors = colors
 rdg_colors = c(rdg_colors, `TRUE`="red", `FALSE`="cyan") 
-source("Divergence.R")
 div_ecdf=p1
 #
 # 

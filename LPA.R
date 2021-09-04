@@ -4,6 +4,7 @@ source("plotutils.R")
 
 
 
+
 #bed = fread('../sd_regions_in_hifi_wga/lpa/all.gene.models.bed', col.names = c("contig", "starto","endo", "target", "qual", "strand","sample","hap"));bed$len = bed$endo - bed$starto; bed
 
 cnbed=fread("lpa_figure/LPA.aln.tbl")
@@ -43,7 +44,9 @@ bed = data.table(bed %>% group_by(lab) %>% mutate( clength = max(endo)))
 bed$starto2 = bed$clength - bed$endo
 bed$endo2 = bed$clength - bed$starto
 
-bed[bed$sample == "HG002",]$SuperPop = "EUR"
+bed[bed$sample %in% c("HG002","CHM13", "CHM1"), ]$SuperPop = "EUR"
+bed[bed$sample %in% c("GRCh38chrOnly"), ]$SuperPop = "GRCh38"
+
 bed = data.table(bed %>% group_by(lab) %>% mutate( clength = max(endo2), start = starto2 - min(starto2), end = endo2-min(starto2)))
 
 at_risk=data.table(bed %>% group_by(sample,hap) %>%
@@ -88,6 +91,7 @@ p=ggplot(data=bed, aes(color=at_risk) )+
   guides(color=guide_legend(title ="At increased risk for CVD"));p
 ggsave( "lpa_figure/lpa_gene_models.pdf", plot=p, height = 9, width = 16)
 
+ggsave(glue("{SUPP}/lpa_gene_models.pdf"), plot=p, height = 9/1.2, width = 16/1.2)
 
 
 #g=plot_grid(p2, NULL, p, labels = c('a','c', 'b'));g
@@ -100,5 +104,43 @@ ggsave( "lpa_figure/lpa_gene_models.pdf", plot=p, height = 9, width = 16)
 #paf = fread("../minigraph/lpa/out.paf", fill=T, header=F)[,1:12]; colnames(paf) = c("q", "qle", "qst", "qen", "strand", "t", "tle", "tst", "ten", "x","y","z"); paf; unique(paf$t)
 #ggplot(data=paf) +geom_segment(aes(x=tst, xend=ten, y=q, yend=q, color=q)) + facet_wrap(vars(t), ncol=length(unique(paf$t)), scales="free_x") +theme_cowplot() + theme(legend.position = "none")
 
+superpop= data.table(AFR, AMR, EAS, 
+                     "African", "Ad Mixed American", "East Asian", "European"
+                     EUR, 
+                     SAS, South Asian)
+
+bed = bed[!is.na(SuperPop), ]
+bed$newlab = bed$SuperPop
+#bed[is.na(bed$newlab)]$SuperPop = "UKN"
+bed$newlab = paste(bed$lab, bed$newlab)
+p2=ggplot(data=bed, aes(color=at_risk) )+
+  geom_segment(aes(x=start, xend=end, y=lab, yend=lab), size=6)+
+  #scale_x_continuous( expand = c(0, 0), limits = c(1,max(df$end)),breaks = c(1,max(df$end)) ) +
+  geom_segment(data = bed %>% 
+                 group_by(lab,SuperPop) %>% 
+                 summarise(start=min(start), end=max(end), at_risk=unique(at_risk)), 
+               aes(x=start, xend=end, y=lab, yend=lab), size=0.75)+
+  ylab('')+xlab('')+
+  theme_classic()+
+  #geom_text(data = unique(bed[,c("lab","CN","at_risk")]), aes(x=-1e4, y=lab, label=CN))+
+  #geom_text(aes(x=-1e4, y=max(as.numeric(lab))+1, label="CN"), color="black")+
+  # add super pop
+  geom_text(data = unique(bed[,c("lab","SuperPop")]), aes(x=-2e4, y=lab, label=SuperPop), color="black")+
+  #
+  scale_x_continuous(label = comma)   +
+  scale_color_manual(values = c(`TRUE`=NEWCOLOR, `FALSE`="black", `Unknown (NHP)`="#4B0082"))+
+  #scale_color_brewer(palette = "Dark2")+
+  #facet_grid(lab~.)+
+  #scale_y_discrete(limits = c(0, max(length(unique(bed$lab)))) )+
+  theme_cowplot()+
+  coord_cartesian(clip = 'off')+
+  theme(plot.margin=margin(1,1,1,1, 'cm'), 
+        axis.line.y =  element_blank(), axis.ticks.y = element_blank(), 
+        legend.position = "top")+
+  guides(color=guide_legend(title ="At increased risk for CHD"))
+
+
+
+ggsave(glue("~/Desktop/lpa_gene_models.pdf"), plot=p2, height = 9/1.5, width = 16/1.2);p2
 
 

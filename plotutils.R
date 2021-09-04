@@ -35,12 +35,13 @@ library(zoo)
 library(ggforce)
 library(ggridges)
 library(xlsx)
+library(tools)
 if(! require("ggnewscale")) install.packages("ggnewscale")
 
-readbed = function(f, tag, rm=F, chrfilt=FALSE){
+readbed = function(f, tag, rm=F, chrfilt=FALSE, fai=FAI){
   df = fread(glue(f)); df
   colnames(df)[1:3]=c("chr","start","end")
-  df=merge(df, FAI[,c("chr","chrlen")], by="chr", all.x=TRUE)
+  df=merge(df, fai[,c("chr","chrlen")], by="chr", all.x=TRUE)
   if(rm){
     colnames(df)=c("chr","start","end","t1","len","strand","type","subtype","x","y")[1:length(colnames(df))]
   }
@@ -71,22 +72,46 @@ grtodf = function(gr){
 #
 # util funcations
 #
-add_genes=function(df, all=FALSE){
+add_genes=function(df, all=FALSE, trim=FALSE,v1.1=FALSE, genelist=GENES){
   #df=rdg[,c(4,5,6,1)]
   #x = do_bedtools_intersect(toGRanges(df[,1:4]), toGRanges(GENES[,1:4]), loj = T); nrow(df)
-  tmp=GENES
+  tmp=genelist
+  tmpall = ALL_GENES
+  if(v1.1){
+    tmp=GENES_V1.1
+    tmpall = ALL_GENES_V1.1
+  }
+  
   if(all){
     # fine ones with ORF
-    ORF = do.call(paste0, ALL_GENES[,1:12]) %in% do.call(paste0, GENES[,1:12])
+    ORF = do.call(paste0, tmpall[,1:12]) %in% do.call(paste0, tmp[,1:12])
     sum(ORF)
-    tmp = ALL_GENES
+    tmp = tmpall
     tmp$ORF = ORF
   }else{
     tmp$ORF = T
   }
+  
   o = GenomicRanges::findOverlaps(toGRanges(df), toGRanges(tmp))
+  if(trim){
+    tmp = tmp[,c("gene","ORF")]
+  }
   cbind(df[queryHits(o)], tmp[subjectHits(o)])
 }
+
+merged_overlaps = function(df, toadd){
+  toadd = as.data.table(toadd)
+  df = as.data.table(df)
+  o = GenomicRanges::findOverlaps(toGRanges(df),
+                                  GenomicRanges::reduce( toGRanges(toadd) )
+                                  )
+  length(unique(queryHits(o)))
+  length(queryHits(o))
+  #nrow(df)
+  cbind(df[queryHits(o)], toadd[subjectHits(o)])
+}
+
+
 has_genes=function(df, all=FALSE){
   #df=rdg[,c(4,5,6,1)]
   #x = do_bedtools_intersect(toGRanges(df[,1:4]), toGRanges(GENES[,1:4]), loj = T); nrow(df)
@@ -98,6 +123,9 @@ has_genes=function(df, all=FALSE){
     tmp = ALL_GENES
     tmp$ORF = ORF
   }else{
+    #tmp$ORF = Toverlaps <- pintersect(refGR[queryHits(hits)], testGR[subjectHits(hits)])
+    #percentOverlap <- width(overlaps) / width(testGR[subjectHits(hits)])
+    #hits <- hits[percentOverlap > 0.5]
     tmp$ORF = T
   }
   o = GenomicRanges::findOverlaps(toGRanges(df), toGRanges(tmp))
@@ -112,6 +140,8 @@ is_sd=function(df){
 
 
 rgntag = function(q,r, tag, minoverlap=0, mincov=0.5, rreduce=FALSE){
+  q=as.data.table(q)
+  r=as.data.table(r)
   if(rreduce){
     q = data.table(data.frame(GenomicRanges::reduce(toGRanges(q))))
     colnames(q)[1:3]=c("chr","start","end")
@@ -140,7 +170,7 @@ overlaps = function(q,r, minoverlap=0, mincov=0.0, rreduce=FALSE){
   return(overlaps)
 }
 
-overlap_either= function(q,r, minoverlap=250, mincov=0.25, rreduce=FALSE){
+overlap_either = function(q,r, minoverlap=250, mincov=0.25, rreduce=FALSE){
   #q=sedef; r=NEW
   o1 = overlaps(q[,c("chr","start","end")], r, minoverlap=minoverlap, mincov=mincov, rreduce=FALSE)
   o2 = overlaps(q[,c("chr2", "start2","end2")],r, minoverlap=minoverlap, mincov=mincov, rreduce=FALSE)
@@ -156,7 +186,13 @@ achro=function(df){
         (chr == "chr22" & start < CENS[chr=="chr22"]$start) 
      ]
 }
-
+is_achro=function(df){
+  (df$chr == "chr13" & df$end < CENS[chr=="chr13"]$start) | 
+    (df$chr == "chr14" & df$end < CENS[chr=="chr14"]$start) |
+    (df$chr == "chr15" & df$start < CENS[chr=="chr15"]$start) | 
+    (df$chr == "chr21" & df$start < CENS[chr=="chr21"]$start) | 
+    (df$chr == "chr22" & df$start < CENS[chr=="chr22"]$start) 
+}
 
 chrplot = function(df){
   p=ggplot(data=df[chr!="chrMT"], aes(x=start/1000000, weight=(end-start)))+
@@ -323,4 +359,9 @@ length_stats <- function(df){
 }
 
 
-
+my_ggsave <- function(filename, plot = last_plot(), ...){
+  basename = file_path_sans_ext(filename)
+  table_out = paste0(basename, ".datatable.tsv")
+  write.table(plot$data, file=table_out, sep="\t", row.names = F, quote = F)
+  ggsave(filename, plot=plot, ...)
+}

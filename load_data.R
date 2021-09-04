@@ -22,7 +22,8 @@ FAI$chr = factor(FAI$chr, levels =  c(CHRS, unique(FAI$chr[which(!FAI$chr %in% C
 # output directories
 FIGURE_DIR="~/Google Drive/My Drive/Vollger CHM13 T2T SDs 2020/Figures"
 SUPP="~/Google Drive/My Drive/Vollger CHM13 T2T SDs 2020/Figures/Misc"
-TABLES="~/Google Drive/My Drive/Vollger CHM13 T2T SDs 2020/Tables"
+SUPP="~/mvollger@uw.edu\ -\ Google\ Drive/My\ Drive/Vollger\ CHM13\ T2T\ SDs\ 2020/Figures/added-after-2021-09-04"
+TABLES="~/Google Drive/My Drive/Vollger CHM13 T2T SDs 2020/Tables/Misc"
 LOCAL_DATA="~/Desktop/Rdata"
 
 #
@@ -34,7 +35,9 @@ source("plotutils.R")
 # load large data
 #
 if(F){
-  FAI_38 = fread("data/hg38.chr_only.fa.fai", col.names = c("chr","length", "x","y","z"))
+  FAI_38 = fread("data/hg38.chr_only.fa.fai", col.names = c("chr","chrlen", "x","y","z"))
+  FAI_v1.1 = fread("data/chm13_v1.1_plus38Y.fasta.fai", col.names = c("chr","chrlen", "x","y","z"))
+  
   
   #
   NS = readbed("data/chm13.draft_v1.0_plus38Y.Ns.bed", "Ns")
@@ -64,6 +67,11 @@ if(F){
   NEW=grtodf(GenomicRanges::setdiff(GenomicRanges::reduce(GENOME),toGRanges(synt)))
   NEW=NEW[!NEW$chr %in% c("chrY", "chrMT","chrM", NA)]
   
+  GENES_V1.1=readbed(glue("../Assembly_analysis/Liftoff/chm13_v1.1_plus38Y.orf_only.bed"), "GENES")
+  GENES_V1.1$gene=GENES_V1.1$V4
+  ALL_GENES_V1.1=readbed(glue("../Assembly_analysis/Liftoff/chm13_v1.1_plus38Y.all.bed"), "GENES")
+  ALL_GENES_V1.1$gene=ALL_GENES_V1.1$V4
+  
   GENES=readbed(glue("data/{V}.orf_only.bed"), "GENES")
   GENES$gene=GENES$V4
   ALL_GENES=readbed(glue("data/{V}.all.bed"), "ALL_GENES")
@@ -71,6 +79,9 @@ if(F){
   
   RM = readbed("data/{V}_repeatmasker.out.bed", "T2T CHM13", rm=T)
   SAT = RM[RM$type == "Satellite"]
+  
+  RM_V1.1 = readbed("../Assembly_analysis/Masked/chm13_v1.1_plus38Y_repeatmasker.out.bed", "T2T CHM13 v1.1", rm=T)
+  SAT_V1.1 = RM[RM$type == "Satellite"]
   
   
   DM_BED = readbed("data/{V}_dupmasker_colors.bed", "T2T CHM13")
@@ -86,8 +97,8 @@ if(F){
   
   ENRICHED = readbed("data/{V}.sedef.enriched.bed", "highsd")[,1:4]
   
-  
-  SEDEF_38 = readbed("data/hg38.chr_only.SDs.bed", "GRCh38", chrfilt=TRUE)
+  SEDEF_V1.1 = readbed("data/chm13_v1.1_plus38Y.SDs.bed", "T2T CHM13 v1.1", fai=FAI_v1.1)
+  SEDEF_38 = readbed("data/hg38.chr_only.SDs.bed", "GRCh38", chrfilt=TRUE, fai=FAI_38)
   SEDEF_38 = rgntag(SEDEF_38, DM_38, "Duplicon")
   SEDEF_CELARA = readbed("data/Celera_WGSA.SDs.bed", "Celera WGSA")
   
@@ -129,6 +140,7 @@ if(F){
   tmpINV = readbed("../PAV/20210213/results/GRCh38_chrOnly/bed/sv_inv.bed.gz", "Non SD")
   tmpIndelDEL = readbed("../PAV/20210213/results/GRCh38_chrOnly/bed/indel_del.bed.gz", "Non SD")
   tmpIndelINS = readbed("../PAV/20210213/results/GRCh38_chrOnly/bed/indel_ins.bed.gz", "Non SD")
+  PAV_CALLABLE = readbed("../PAV/20210213/results/GRCh38_chrOnly/callable/callable_regions_h1_500.bed.gz", "Callable")
   ALLPAV = rbind(tmpSNVs, tmpINS, tmpDEL, tmpINV, tmpIndelDEL, tmpIndelINS, fill=T) %>% 
     filter( !grepl("N", ALT) & chr %in% NOYM) %>%
     data.table()
@@ -162,10 +174,9 @@ if(F){
        METH_CLUSTERS_BP_002,
        file = glue("{LOCAL_DATA}/HG002.meth.data"))
   
-}else if (F){
+}else if(F){
   load(glue("{LOCAL_DATA}/meth.data"))
   load(glue("{LOCAL_DATA}/HG002.meth.data"))
-  
 }
 
 

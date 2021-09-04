@@ -84,7 +84,13 @@ rdg$region_color = colors[rdg$status]
 #
 # This plot shows the cumlative distribution of CN imporvment
 #
-ecdf_rdg = pivot_longer(rdg, cols = which(colnames(rdg) %in% c("chm13_diff","hg38_diff")), names_to="ecdf_name", values_to = "ecdf_diff" )
+rdg_perfect = copy(rdg)
+rdg_perfect = merge(rdg, rgn.df[,c("name","mean", "median")], on="name")
+rdg_perfect$perfect = rdg_perfect$median
+rdg_perfect$perfect_diff = rdg_perfect$CN - rdg_perfect$median
+
+ecdf_rdg = pivot_longer(rdg_perfect, cols = which(colnames(rdg_perfect) %in% c("chm13_diff","hg38_diff", "perfect_diff")),
+                        names_to="ecdf_name", values_to = "ecdf_diff" )
 
 simple_auc = function(fecdf, maxval){
   auc = sum(fecdf(seq(0, maxval)))/maxval
@@ -94,27 +100,40 @@ vals13 = abs( ecdf_rdg[ecdf_rdg$ecdf_name =="chm13_diff",]$ecdf_diff)
 ecdf13 = ecdf(vals13)
 vals38 = abs( ecdf_rdg[ecdf_rdg$ecdf_name =="hg38_diff",]$ecdf_diff)
 ecdf38 = ecdf(vals38)
+vals_per = abs( ecdf_rdg[ecdf_rdg$ecdf_name =="perfect_diff",]$ecdf_diff)
+ecdf_per = ecdf(vals_per)
 
 max_allowed_cn_diff = 30
-auc.df = data.frame(Reference = c("T2T CHM13", "GRCh38"), 
+auc.df = data.frame(Reference = c("T2T CHM13", "GRCh38", "Median CN of SGDP"), 
                     AUC = round(c(simple_auc(ecdf13, max_allowed_cn_diff), 
-                            simple_auc(ecdf38, max_allowed_cn_diff)),2))
+                            simple_auc(ecdf38, max_allowed_cn_diff),
+                            simple_auc(ecdf_per, max_allowed_cn_diff)
+                            ),
+                            2)
+                    )
 #                    color = c("chm13_diff", "hg38_diff"))
 auc.df
+ecdf_rdg$alpha = 1; ecdf_rdg[ecdf_rdg$ecdf_name == "perfect_diff",]$alpha = 0.9
 
 ecdf_cn_plot = ggplot(data=ecdf_rdg) + 
-  stat_ecdf(aes(x=abs(ecdf_diff), color=ecdf_name), size=3) +
-  scale_color_manual(values=c(chm13_diff=NEWCOLOR, hg38_diff=OLDCOLOR))+
+  stat_ecdf(data = . %>% filter(ecdf_name != "perfect_diff"),
+            aes(x=abs(ecdf_diff), color=ecdf_name), size=2, alpha=.9) +
+  stat_ecdf(data = . %>% filter(ecdf_name == "perfect_diff"),
+            aes(x=abs(ecdf_diff), color=ecdf_name), alpha = 0.75,  size=1) +
+  scale_color_manual(values=c(chm13_diff=NEWCOLOR, hg38_diff=OLDCOLOR, perfect_diff="forestgreen"),
+                     labels=c("T2T CHM13", "GRCh38", "Median CN of SGDP"))+
   #coord_cartesian(xlim = c(0,20))+
   facet_zoom(x= abs(ecdf_diff) <= max_allowed_cn_diff, zoom.size = 3)+
   xlab("Allowed CN difference between\nthe sample and the reference")+
   ylab("Cumulative fraction of correct CN representation")+
-  theme_cowplot()+theme(legend.position = "none"); ecdf_cn_plot
+  theme_cowplot()+theme(legend.position = "top", 
+                        legend.title = element_blank())
 
 ecdf_cn_plot = ggdraw() + 
   draw_plot(ecdf_cn_plot) +
   draw_grob(tableGrob(auc.df, theme=ttheme_minimal(), rows=NULL), 
             x=1, y=1, hjust = 1, vjust = 1.25, halign = 1, valign = 1)
+ecdf_cn_plot
 
 ggsave(glue("{SUPP}/wssd_ecdf.pdf"), width = 12, height = 8, plot=ecdf_cn_plot)
 

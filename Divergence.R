@@ -1,5 +1,6 @@
 #!/usr/bin/env Rscript
 setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
+library(circlize)
 #source("plotutils.R")
 pal = c(`MHC`="#3282b8",
         `chrX`="#96bb7c",
@@ -96,8 +97,13 @@ add_regions_to_data <- function(rgns){
 #
 pav_windows = summarise_pav_by_window(allpav)
 div.df = add_regions_to_data(pav_windows)
+div.df$non_overlap_end = div.df$start + STEP
 insync = div.df[!overlaps(div.df, NEW)]
 
+out.tbl = insync[order(as.character(chr), start),][
+  Region %in% c("SDs", "Non SD"), c("chr", "start", "non_overlap_end", "# SNVs")]
+fwrite(file = "../SNV_windows_browser/SNV.pav.bed", out.tbl,
+            col.names = F, row.names = F, sep="\t", quote = F, scipen = 20)
 #
 # all data 
 #
@@ -276,6 +282,120 @@ ggsave(glue("{SUPP}/div_ideo.pdf"), width = 12, height = 8, plot=Div)
 
 
 
+#
+#
+# SNV heatmap as circous
+#
+#
+merged = as.data.table(reduce(GRanges(insync[Region == "SDs"])+1e5)) %>% 
+  mutate(sd_id = paste(seqnames,start,end,sep="_"),
+         dist_bewteen = start - lag(end),
+         sd_start=start,
+         sd_end = end) %>% 
+  mutate(start)
+merged[start<0, c("start","sd_start")] = 0
+merged
+bedlength(merged)/1e6
+o = findOverlaps(GRanges(insync[Region %in% c("SDs", "Non SD")]), GRanges(merged), minoverlap = 1e4)
+heatmap.df = cbind(insync[Region %in% c("SDs", "Non SD")][queryHits(o)]
+                   ,merged[subjectHits(o), c("sd_id", "sd_start", "sd_end")])
+heatmap.df$color = NEWCOLOR
+heatmap.df[Region != "SDs"]$color = OLDCOLOR
+
+f1 = function(){
+  cyto.df <- data.frame(CYTOFULL)[, c("seqnames","start","end","seqnames","gieStain")]
+  cyto.df = cyto.df[cyto.df$seqnames %in% touse,]
+  cyto.df$seqnames = factor(cyto.df$seqnames, levels =  c(CHRS[!CHRS %in% ACHRO ], ACHRO))
+  cyto.df  = cyto.df[order(cyto.df$gieStain, cyto.df$seqnames),]
+  cyto.df$seqnames = as.character(cyto.df$seqnames)
+  #gap.degree=360/(4*length(unique(seqnames(CYTOFULL)))); gap.degree
+  #circos.par(cell.padding = c(0, 0, 0, 0), gap.degree=gap.degree)
+  circos.initializeWithIdeogram(cyto.df, ideogram.height = .1, plotType = c("ideogram", "labels"))
+  
+  col_fun = colorRamp2(c(-1, 0, 1), c("green", "black", "red"))
+  bed=insync[chr %in% touse, c("chr","start","end","# SNVs")]
+  bed
+  circos.genomicHeatmap(bed, col = col_fun, side = "inside", border = "white")
+  
+};
+f2 = function(){
+  conversion = conversion[chr %in% touse]
+  print(dim(conversion))
+  gap.degree=360/(8*length(conversion$sd_id)); gap.degree
+  circos.par(cell.padding = c(0, 0, 0, 0), track.height=0.4, gap.degree=gap.degree)
+  circos.initialize(factors=conversion$sd_id, xlim = conversion[,c(2,3)])
+  zoom_data = heatmap.df[sd_id %in% conversion$sd_id][`# SNVs` > 10]
+               
+  circos.track(zoom_data$sd_id, x = zoom_data$start, y = log10(zoom_data$`# SNVs`+1), 
+               panel.fun = function(x, y, z) {
+                 circos.points(x, y, pch = 16, cex = 0.5, col=NEWCOLOR)
+               },
+               track.margin = c(0, 0)
+               )
+  
+  o = findOverlaps(reduce(GRanges(SEDEF[chr %in% touse])), GRanges(merged))
+  SD = cbind(as.data.table(reduce(GRanges(SEDEF[chr %in% touse])))[queryHits(o)], 
+             merged[subjectHits(o), c("sd_id", "sd_start", "sd_end")])
+  SD[start < sd_start]$start = SD[start < sd_start]$sd_start
+  SD[end > sd_end]$end = SD[end > sd_end]$sd_end
+  circos.par(cell.padding = c(0, 0, 0, 0), track.height=0.1)
+  circos.track(ylim = c(0,1))
+  circos.genomicRect(SD[,c("sd_id", "start", "end")], 0, col=transparent(NEWCOLOR,0.5), border = NA, track.height=0.1)
+  
+  
+  #o = findOverlaps(GRanges(ALLPAV[chr %in% touse]), GRanges(merged))
+  #snvs = cbind(ALLPAV[chr %in% touse ][queryHits(o)]
+  #           ,merged[subjectHits(o), c("sd_id", "sd_start", "sd_end")])
+  #circos.par(cell.padding = c(0, 0, 0, 0), track.height=0.1)
+  #circos.track(ylim = c(0,1))
+  #circos.genomicDensity(as.data.table(zoom_data[,c("sd_id","start","end")]))
+  
+  dim(SD)
+} ; f2()
+
+conversion=unique(heatmap.df[,c("sd_id","sd_start","sd_end","chr")])
+conversion$start2=conversion$sd_start
+conversion$end2 = conversion$sd_end
+conversion
+
+touse <<- c("chr1")
+circos.nested(f2, f1, conversion, connection_height = mm_h(20),connection_col = "lightgray")
+
+
+
+#### PDF booklet of SNV density
+NONR_SD 
+sd_regions = as.data.table( reduce(NONR_SD[width(NONR_SD) > 5e4] + 1e5)  )[width > 5e5 & seqnames %in% NOYM]
+colnames(sd_regions) = c("sdb_chr", "sdb_st", "sdb_en", "sdv_width", "sdb_strand")
+sd_regions[sdb_st < 0,]$sdb_st = 0
+fwrite(sd_regions[,1:3], file="../SNV_windows_browser/large_sd_regions.bed", quote = F,
+       col.names=F, row.names=F, sep="\t", scipen = 1000)
+dim(sd_regions); #bedlength(sd_regions)/1e6
+pav_marked_by_block = merged_overlaps(pav, sd_regions) %>% 
+  separate(SyntenicRegion, 
+           into = c("syn_chr","syn_st","syn_en"), 
+           sep = ":|-", convert = T) %>% 
+  data.table()
+
+pav_marked_by_block$tag = paste(pav_marked_by_block$sdb_chr, 
+                                pav_marked_by_block$sdb_st, 
+                                pav_marked_by_block$sdb_en,
+                                sep = "_")
+pav_snv_plot_df = pav_marked_by_block[tag == pav_marked_by_block$tag[1000]]
+ggplot(data=pav_snv_plot_df %>% filter(SVTYPE=="SNV")) +
+  geom_histogram(aes(x = start, fill=Region), binwidth = 1e4) +
+  scale_color_manual(values = c(Syntenic = "darkgreen")) +
+  geom_segment(aes(y = -1, yend=-1,
+                   x=syn_st, xend=syn_en, color="Syntenic"), alpha=0.8, size=4) +
+  scale_x_continuous(label=comma)+
+  xlab("genomic position") +
+  ylab("# SNVs in 10 kbp widnows") +
+  theme_cowplot() +
+  ggtitle(pav_snv_plot_df$tag[1])+
+  coord_cartesian(ylim=c(-0.25,NA), 
+                  xlim=c(min(pav_snv_plot_df$sdb_st),
+                         max(pav_snv_plot_df$sdb_en))
+                  ) 
 
 #
 # inversions and new regions compared to GRCh38
@@ -298,12 +418,28 @@ ggsave(glue("{SUPP}/div_ideo_large_differneces.pdf"), width = 12, height = 8, pl
 
 
 #p = plot_grid(p1, Div, bot, Inv,labels = c("a","b",NA,"d"), nrow=2, ncol=2)
-p = cowplot::plot_grid(p1,  
-              cowplot::plot_grid(Div,Inv, labels = c("b","c"), ncol=2),
-              labels = c("a", NA), 
-              nrow=2)
-ggsave(glue("{SUPP}/Divergence.pdf"), plot=p, height = 14, width = 14)
+p = cowplot::plot_grid(
+              cowplot::plot_grid(p1, sd_vs_non_p_hist, SNV_dist, labels = c("a","b","c"), ncol=1),  
+              cowplot::plot_grid(snvs_per_kbp, labels = c("d")),
+              ncol=2)
+ggsave(glue("{SUPP}/Divergence.pdf"), plot=p, height = 24/1.5, width = 20/1.5)
 
+
+z1 = ggplot(data=pav %>% filter(chr == "chr16" & start > 20e6 & end < 60e6))+
+  geom_point(aes(x=start, y = runif(length(start)), color=Region) ) + 
+  theme_cowplot() + 
+  theme(legend.position = "top"); z1
+
+z2 = ggplot(data=pav %>% filter(SVTYPE == "SNV" & chr == "chr16" & start > 15e6 & end < 20e6))+
+  geom_histogram(aes(x=start, color=Region, fill = Region), binwidth = 10000 ) + 
+  theme_cowplot() +
+  #scale_y_log10()+
+  theme(legend.position = "top")
+z2
+
+write.table(pav[SVTYPE=="SNV" & Region %in% c("SD", "Non SD"), 1:3],
+          file = "~/Desktop/pav.snv.bed",
+          sep="\t", quote = F, row.names = F, col.names = F)
 
 
 #
@@ -328,6 +464,11 @@ xx  = ggdraw(new_lengths)+
             x=0, y=.25, width=1, height=1, hjust = 0, vjust = 0)
 
 ggsave(glue("{SUPP}/new_region_lengths.pdf"), plot=xx, height = 8, width = 12)  
+
+
+
+
+
 
 
 

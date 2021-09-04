@@ -3,8 +3,9 @@ setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
 source("plotutils.R")
 
 
-SAMPLE=""
 SAMPLE="HG002"
+SAMPLE=""
+
 if(SAMPLE=="HG002"){
   meth_and_transcript = METH_SD_GENES_002
   df = METH_CLUSTERS_002
@@ -166,6 +167,9 @@ iso_meth_plot = ggplot(data=gene.ave.df,
   # add the data intervals
   geom_ribbon(aes(ymin=bot, ymax=top), color = transparent("black",1), alpha=0.2, size=0)+
   
+  # add 50% line
+  geom_hline(yintercept=c(0.5), color="black", alpha=0.35, size = 1, linetype="dashed") + 
+  
   geom_vline(xintercept=c(0,2), linetype=5)+
   scale_color_manual("Median\nmethylation", values = c(OLDCOLOR, NEWCOLOR), labels=c("unique", "SD"))+
   scale_fill_manual("Methylation\nquartiles (1-3)", values = c(OLDCOLOR, NEWCOLOR), labels=c("unique", "SD"))+
@@ -322,25 +326,52 @@ make_gene_plot <- function(chrs){
 #genes2=make_gene_plot(NOYM[10:23])
 #plot_grid(iso_meth_plot, genes,genes2, rel_heights = c(2,2,2), ncol=1)
 
-n_rolling_mean = 10
-gage = gene.df[grepl("TBC1D3([[:alpha:]])*$", gene.df$gene),] 
-gage = gene.df[grepl("NPIPA", gene.df$gene),] 
-#gage = gene.df[grepl("NBPF", gene.df$gene),] 
 
-gene_plot = ggplot(data=gage %>% arrange(n_transcripts))+
-  geom_vline(xintercept=c(0,2), linetype=5 )+
-  geom_point(aes(x=min, y=methylated_frequency, fill=""), size=0.5, alpha=1)+
-  scale_fill_manual("Data", values = "black")+
-  geom_line(aes(x=min, y=rollmean(methylated_frequency, n_rolling_mean, na.pad=TRUE, align = "center"), color=""), size=.5)+
-  scale_color_manual(glue("Rolling mean (n = {n_rolling_mean})"), values = NEWCOLOR)+
-  facet_wrap(n_transcripts~gene, nrow=1)+
-  scale_x_continuous(breaks = c("TSS"=0, "TTS"=2)   )+
-  theme_cowplot() +
-  theme(legend.position = "top") +
-  ylab("CpG methylation frequency")+
-  xlab("Normalized position along gene body");gene_plot
 
-#meth_gene_plot = plot_grid(iso_meth_plot, gene_plot, rel_heights = c(2,2), ncol=1)
+gene_meth_plot <- function(df, n_rolling_mean = 10){
+  gage=df
+  gene_plot = ggplot(data=gage %>% arrange(n_transcripts))+
+    geom_vline(xintercept=c(0,2), linetype=5 )+
+    geom_point(aes(x=min, y=methylated_frequency, fill=""), size=0.5, alpha=1)+
+    scale_fill_manual("Data", values = "black")+
+    geom_line(aes(x=min, 
+                  y=rollmean(methylated_frequency, n_rolling_mean, na.pad=TRUE, align = "center"),
+                  color=""),
+              size=.5)+
+    scale_color_manual(glue("Rolling mean (n = {n_rolling_mean})"), values = NEWCOLOR)+
+    facet_wrap(n_transcripts~gene, nrow=1)+
+    scale_x_continuous(breaks = c("TSS"=0, "TTS"=2)   )+
+    theme_cowplot() +
+    theme(legend.position = "top") +
+    ylab("CpG methylation frequency")+
+    xlab("Normalized position along gene body")
+  gene_plot
+}
+gene_plot = gene_meth_plot( gene.df[grepl("NPIPA", gene.df$gene),] ); gene_plot
+tbc1d3_plot = gene_meth_plot( gene.df[grepl("TBC1D3([[:alpha:]])*$", gene.df$gene),] ); tbc1d3_plot
+NBPF_plot = gene_meth_plot( gene.df[grepl("NBPF([[:digit:]])*$", gene.df$gene),] ); NBPF_plot
+#GOLGA_plot = gene_meth_plot( gene.df[grepl("GOLGA.*$", gene.df$gene),] ); GOLGA_plot
+amy_plot = gene_meth_plot( gene.df[grepl("AMY.*$", gene.df$gene),] ); amy_plot
+srgap_plot = gene_meth_plot( gene.df[grepl("SRGAP2.*$", gene.df$gene),] ); srgap_plot
+notch2_plot = gene_meth_plot( gene.df[grepl("NOTCH2.*$", gene.df$gene),] ); notch2_plot
+
+ggsave(glue("{SUPP}/meth_in_gene_famlies{SAMPLE}.pdf"), 
+       plot=cowplot::plot_grid(
+         tbc1d3_plot,
+         NBPF_plot,
+         amy_plot,
+         notch2_plot,
+         srgap_plot,
+         ncol = 1
+       ), 
+       height = 20, width = 16)
+
+
+
+
+#
+# Make the main figure
+#
 meth_fig = cowplot::plot_grid(
   cowplot::plot_grid(
     meth_block_plot, iso_meth_plot,

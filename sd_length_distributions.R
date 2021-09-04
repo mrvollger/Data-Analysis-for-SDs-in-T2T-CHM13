@@ -35,7 +35,9 @@ ggplot(data=df) +
 
 info.df = df %>% group_by(Assembly) %>% 
   group_modify(~length_stats(.x)) %>% 
-  mutate(label=as.factor(label))
+  mutate(label=as.factor(label)) %>% 
+  merge(df%>% group_by(Assembly) %>% summarise(count = n()))
+
 info.df$y = rep(seq(.1,.8,.7/(length(unique(info.df$label))-1)), length(unique(info.df$Assembly)))
 info.df
 
@@ -65,6 +67,50 @@ p = plot_grid(p1,p2)
 
 ggsave(glue("{SUPP}/sd_length_identity.pdf"), plot = p, width = 16, height = 8)
 p
+
+
+info.df.2 = info.df %>% 
+  mutate(label = paste(label, round(value))) %>% 
+  group_by(Assembly) %>%
+  summarise(label = paste(label, collapse = "\n"))
+
+
+p1 = ggplot(data=df)+
+  geom_histogram(aes(max_len, fill=Assembly), bins = 200)+
+  facet_col(~Assembly, scales = "free_y")+
+  xlab("Segmental duplication length (bp)")+
+  geom_text(data=info.df.2, 
+            aes(label=label, x= 0.75e6, y=25, group = Assembly),
+            #direction = "y",
+            #ylim = c(0,NA),
+            hjust = 0, vjust = 0, size = 3)+
+  scale_fill_manual( values = colors) +
+  scale_color_manual( values = colors) +
+  theme_cowplot()+
+  theme(legend.position = "none") + 
+  scale_x_continuous(trans = "log10", labels = comma) #facet_zoom( x = max_len >= 5e4 & max_len <= 3e5, zoom.size=2, horizontal = F) ;p1
+p1
+p2 = ggplot(data=df)+
+  geom_histogram(aes(fracMatch*100, fill=Assembly), bins=200)+
+  facet_col(~Assembly, scales = "free_y")+
+  xlab("Percent Identity")+
+  scale_x_continuous(breaks = seq(90,100))+
+  scale_fill_manual( values = colors) +
+  theme_cowplot()+
+  theme(legend.position = "none")
+
+p = plot_grid(p1,p2);
+ggsave(glue("{SUPP}/sd_length_identity.pdf"), plot = p, width = 16, height = 12)
+p
+
+
+
+
+
+
+
+
+
 
 
 
