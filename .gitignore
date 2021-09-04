@@ -1,8 +1,10 @@
 pre-2021-09-04/**
 temp/**
+tmp/**
 data/**
 figures/**
 minigraph_figures/**
 results/**
 Tables/**
 data.archive.tar.gz
+pre-2021-09-04.archive.tar.gz
