@@ -321,6 +321,19 @@ tab_df(pull.tbl,
        show.footnote = TRUE, 
        show.rownames = TRUE
        )
+
+gfa_sequences = fread("data/Table_data/Minigraph/gfa_sequences.tbl")
+gfa_sequences %>%
+  mutate(CHM13 = grepl("CHM13", contig)) %>%
+  group_by(region) %>%
+  summarise(ref_bp = sum(length[CHM13]),
+            non_ref_bp = sum(length[!CHM13])
+            ) %>%
+  mutate(percent_non_ref_path=100*non_ref_bp/(non_ref_bp + ref_bp) ) %>%
+  data.table()
+
+write.table(file="~/Desktop/non_reference_bp.tsv", sep="\t", quote = F, row.names = T)
+
 #
 #
 # SVs in the evolutionary loci
