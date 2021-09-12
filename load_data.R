@@ -89,7 +89,8 @@ if(F){
   DM = readbed("data/{V}.duplicons.bed", "T2T CHM13")
   DUPLICON_GC = fread("data/gc_duplicon_map.tbl")
   DM_38 = readbed("data/hg38.chr_only.duplicons.bed", "GRCh38")
-
+  DM_BED_38 = readbed("data/hg38.chr_only_dupmasker_colors.bed", "GRCh38")
+  Ns_38 = readbed("data/hg38.chr_only.Ns.bed", "GRCh38")
   
   SEDEF = readbed("data/{V}.SDs.bed", "T2T CHM13")
   NONR_SD = GenomicRanges::reduce(toGRanges(SEDEF))
