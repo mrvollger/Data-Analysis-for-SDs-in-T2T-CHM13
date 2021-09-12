@@ -136,13 +136,13 @@ if(F){
   #
   # ALL PAV 
   #
-  tmpSNVs = readbed("../PAV/20210213/results/GRCh38_chrOnly/bed/snv_snv.bed.gz", "Non SD")
-  tmpINS = readbed("../PAV/20210213/results/GRCh38_chrOnly/bed/sv_ins.bed.gz", "Non SD")
-  tmpDEL = readbed("../PAV/20210213/results/GRCh38_chrOnly/bed/sv_del.bed.gz", "Non SD")
-  tmpINV = readbed("../PAV/20210213/results/GRCh38_chrOnly/bed/sv_inv.bed.gz", "Non SD")
-  tmpIndelDEL = readbed("../PAV/20210213/results/GRCh38_chrOnly/bed/indel_del.bed.gz", "Non SD")
-  tmpIndelINS = readbed("../PAV/20210213/results/GRCh38_chrOnly/bed/indel_ins.bed.gz", "Non SD")
-  PAV_CALLABLE = readbed("../PAV/20210213/results/GRCh38_chrOnly/callable/callable_regions_h1_500.bed.gz", "Callable")
+  tmpSNVs = readbed("data/misc_files/snv_snv.bed.gz", "Non SD")
+  tmpINS = readbed("data/misc_files/sv_ins.bed.gz", "Non SD")
+  tmpDEL = readbed("data/misc_files/sv_del.bed.gz", "Non SD")
+  tmpINV = readbed("data/misc_files/sv_inv.bed.gz", "Non SD")
+  tmpIndelDEL = readbed("data/misc_files/indel_del.bed.gz", "Non SD")
+  tmpIndelINS = readbed("data/misc_files/indel_ins.bed.gz", "Non SD")
+  PAV_CALLABLE = readbed("data/misc_files/callable_regions_h1_500.bed.gz", "Callable")
   ALLPAV = rbind(tmpSNVs, tmpINS, tmpDEL, tmpINV, tmpIndelDEL, tmpIndelINS, fill=T) %>% 
     filter( !grepl("N", ALT) & chr %in% NOYM) %>%
     data.table()
@@ -186,7 +186,7 @@ if(F){
 if(F){
   #FASTA <- FaFile("../assemblies/chm13.draft_v1.0_plus38Y.fasta")
   open(FASTA)
-  tmp = fread("../duplicons_gc/dm.nuc.bed")
+  tmp = fread("data/misc_files/dm.nuc.bed.gz")
   colnames(tmp)[1:ncol(DM)] = colnames(DM) 
   tmp$chr  = factor(tmp$chr, levels = sort(CHRS))
   tmp = tmp %>%arrange(chr, start)

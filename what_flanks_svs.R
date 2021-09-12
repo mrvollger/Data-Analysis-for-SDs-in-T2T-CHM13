@@ -14,9 +14,9 @@ TABLES="~/Google Drive/My Drive/Vollger CHM13 T2T SDs 2020/Tables/Misc"
 LOCAL_DATA="~/Desktop/Rdata"
 
 if(F){
-df = fread("../what_intersects_sv_flanks/annotated.sv.flanks.bed")
+df = fread("data/misc_files/annotated.sv.flanks.bed.gz")
 #df = fread("../what_intersects_sv_flanks/annotated.svs.bed")
-freqs = fread("../what_intersects_sv_flanks/types.tbl") %>% filter(total_bp > 5e6) %>% 
+freqs = fread("data/misc_files/types.tbl.gz") %>% filter(total_bp > 5e6) %>% 
   add_row(annotation="SD", total_bp=207556333) %>%
   mutate(annotation = factor(annotation, levels = unique(c("SD", sort(annotation)) )))
 df = df %>% 
@@ -69,9 +69,9 @@ ggsave(glue("{SUPP}/what_flanks_svs.pdf"), plot=fig, height=10, width=14)
 make_sd_f <- function(pre, intra, flank = 100){
   #pre = "chm13_v1.0"
   total_sd_flank = fread(glue("../what_intersects_sv_flanks/{pre}.intra_{intra}.sd.{flank}.bed")) %>% summarise(sum(V3-V2))
-  freqs = fread("../what_intersects_sv_flanks/types.sub.sub.tbl") %>% 
+  freqs = fread("data/misc_files/types.sub.sub.tbl.gz") %>% 
     #rbind(fread("../what_intersects_sv_flanks/types.sub.tbl"), fill=T) %>%
-    #rbind(fread("../what_intersects_sv_flanks/types.tbl"), fill=T) %>%
+    #rbind(fread("data/misc_files/types.tbl.gz"), fill=T) %>%
     mutate(fraction=total_bp/3.11e9) %>%
     data.table()
   freqs
@@ -228,7 +228,7 @@ dev.off()
 
 new_sd = SEDEF[overlaps(SEDEF, NEW)]# & overlaps(SEDEF[,10:12], NEW)]
 bedlength(new_sd)/1e6; dim(new_sd)
-fwrite(new_sd, file = "../what_intersects_sv_flanks/new_sds.bed", 
+fwrite(new_sd, file = "data/misc_files/new_sds.bed.gz", 
        row.names = F, col.names = F, sep="\t", scipen = 10000)
 
 

@@ -412,7 +412,7 @@ peri_to_acro = SEDEF[peri & ( !chr %in% ACHRO) & acro2] %>% group_by(chr) %>%
 #
 #
 readdepth = 32.67149444733489 
-rdna_rd = fread("../sda_out/v1_collasped_regions_to_look_at/sd.collapsed.bed",
+rdna_rd = fread("data/misc_files/sd.collapsed.bed.gz",
                 col.names = c("chr","start","end","mean coverage","median coverage", "length"))
 rdna_rd.tab = rdna_rd %>% filter(`mean coverage` > 100) %>%
   mutate(`Expected kbp of uncollapsed sequence` = `mean coverage` * length / (1e3 * readdepth) ) 
@@ -452,7 +452,7 @@ openxlsx::write.xlsx(
 # geneic duplicons with faimly expansions in the top 30 different
 #
 #
-larger_duplicon_families = fread("../top_30_duplicons_gene_intersect/duplicon.gene.fam.expanded.tbl", 
+larger_duplicon_families = fread("data/misc_files/duplicon.gene.fam.expanded.tbl.gz", 
                                  col.names = c("count", "Gene family")) %>%
   filter(count > 1)
   
@@ -471,7 +471,7 @@ openxlsx::write.xlsx(
 # rDNA reads
 #
 #
-hifirdna = fread("../t2t_globus_share/team-rdna/reads-per-chromosome-20201120/rdna_read_stats.tbl") %>% 
+hifirdna = fread("data/misc_files/rdna_read_stats.tbl.gz") %>% 
   filter(type == "hifi") %>%
   mutate(`Expected bp of rDNA` = totalBp/readdepth )
 hifirdna

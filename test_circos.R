@@ -185,7 +185,7 @@ sedef.inter$color = NEWCOLOR
 f1()
 
 pairs = data.table(read_excel("../Assembly_analysis/SEDEF/{V}.sedef.summary.xlsx", sheet="bp"))
-pairs38 = data.table(read_excel("../Assembly_analysis/SEDEF/hg38.chr_only.sedef.summary.xlsx", sheet="bp"))
+pairs38 = data.table(read_excel("data/misc_files/hg38.chr_only.sedef.summary.xlsx.gz", sheet="bp"))
 
 x = as.matrix(pairs[,-1])
 row.names(x) = pairs$...1

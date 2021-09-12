@@ -30,7 +30,7 @@ labs = c(1)#comma(round(10^seq(bot,ymax)/1e3))
 #
 # aln data 
 #
-ptr_cov = fread("../windowed_asm_alignments/results/Clint_PTR_mins.50000_maxc.0.1_window.50000_slide.10000.bed", 
+ptr_cov = fread("data/misc_files/Clint_PTR_mins.50000_maxc.0.1_window.50000_slide.10000.bed.gz", 
                 col.names = c("chr", "start", "end"))
 ptr_cov$missing = ptr_cov$end - ptr_cov$start
 y = has_genes(ptr_cov)

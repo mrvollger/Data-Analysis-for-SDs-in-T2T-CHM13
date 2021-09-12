@@ -4,7 +4,7 @@ theme_set(theme_cowplot())
 if(F){
   non_rd = as.data.table(reduce(toGRanges(SEDEF)))
   kmer_cn = readbed("../wssd/v1.0/kmer/bed/chm13_wssd.sort.bed", tag="kmer CN")
-  read_cn = readbed("../wssd/SD_Freeze1/bed/CHM13_wssd.sort.bed", tag="read CN")
+  read_cn = readbed("data/misc_files/CHM13_wssd.sort.bed.gz", tag="read CN")
   kmer_cn = kmer_cn[overlaps(kmer_cn, non_rd, mincov=0.99)]
   read_cn = read_cn[overlaps(read_cn, non_rd, mincov=0.99)]
   read_cn$CN_read = read_cn$V10
@@ -13,7 +13,7 @@ if(F){
   
   
   kmer_02 = readbed("../wssd/v1.0/kmer/bed/HG002_wssd.sort.bed", tag="kmer CN")
-  read_02 = readbed("../wssd/SD_Freeze1/bed/HG002_wssd.sort.bed", tag="read CN")
+  read_02 = readbed("data/misc_files/HG002_wssd.sort.bed.gz", tag="read CN")
   kmer_02 = kmer_02[overlaps(kmer_02, non_rd, mincov=0.99)]
   read_02 = read_02[overlaps(read_02, non_rd, mincov=0.99)]
   read_02$CN_read = read_02$V10
@@ -22,7 +22,7 @@ if(F){
   
   
   kmer_733 = readbed("../wssd/v1.0/kmer/bed/HG00733_wssd.sort.bed", tag="kmer CN")
-  read_733 = readbed("../wssd/SD_Freeze1/bed/HG00733_wssd.sort.bed", tag="read CN")
+  read_733 = readbed("data/misc_files/HG00733_wssd.sort.bed.gz", tag="read CN")
   kmer_733 = kmer_733[overlaps(kmer_733, non_rd, mincov=0.99)]
   read_733 = read_733[overlaps(read_733, non_rd, mincov=0.99)]
   read_733$CN_read = read_733$V10

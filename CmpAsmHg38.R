@@ -23,7 +23,7 @@ library(RColorBrewer)
 if(rstudioapi::isAvailable()){
   setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
 }
-GAPS = "../assemblies/ucsc.hg38.no_alts.fasta.gap.bed"
+GAPS = "data/misc_files/ucsc.hg38.no_alts.fasta.gap.bed.gz"
 gaps = fread(GAPS, col.names = c("chr", "start", "end"))
 
 
@@ -307,7 +307,7 @@ HG38DM = "../Masker/hg38_50k_dupmasker_colors.bed"
 RM = "../Masker/chm13.20200611_repeatmasker.out.bed"
 DM = "../Masker/chm13.20200611_dupmasker_colors.bed" 
 PAF = "../Masker/chm13.20200611_to_hg38.paf"
-COL = "../sda_out/coverage/chm13.20200611.collapses.with.cm.bed"
+COL = "data/misc_files/chm13.20200611.collapses.with.cm.bed.gz"
 
 
 if(F){

@@ -75,9 +75,9 @@ Inter=as.ggplot(expression(
 
 
 source("plotutils.R")
-hg38 = readbed("../Assembly_analysis/SEDEF/hg38.chr_only.SDs.bed", "GRCh38", chrfilt=TRUE)
-hg37 = readbed("../Assembly_analysis/SEDEF/hg19.no_alt.SDs.bed", "GRCh37")
-celera = readbed("../Assembly_analysis/SEDEF/Celera_WGSA.SDs.bed", "Celera WGSA")
+hg38 = readbed("data/misc_files/hg38.chr_only.SDs.bed.gz", "GRCh38", chrfilt=TRUE)
+hg37 = readbed("data/misc_files/hg19.no_alt.SDs.bed.gz", "GRCh37")
+celera = readbed("data/misc_files/Celera_WGSA.SDs.bed.gz", "Celera WGSA")
 
 multiple_sds = rbind(sedef, hg38,hg37[1])#,celera)
 sheall = pairwise_plot(multiple_sds)

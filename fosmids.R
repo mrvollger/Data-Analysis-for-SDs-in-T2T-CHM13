@@ -3,7 +3,7 @@ setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
 #source("plotutils.R")
 
 
-tested_sds = readbed("../FES_stuff/acro_cn/probe.mappings.bed", "sds")
+tested_sds = readbed("data/misc_files/probe.mappings.bed.gz", "sds")
 probe = c("174222_ABC10_2_1_000044559800_C15","174222_ABC10_2_1_000044587300_G6","171417_ABC10_2_1_000045520200_K20")
 #tested_sds=tested_sds[probe_id %in% probe]
 n =length(unique(tested_sds$probe_id))
@@ -13,7 +13,7 @@ n =length(unique(tested_sds$probe_id))
 #
 # read in fes results
 #
-results = fread("../FES_stuff/acro_cn/results.csv")
+results = fread("data/misc_files/results.csv.gz")
 results = melt(results, id.vars =c("sample", "CLONES"))
 results$loc = gsub("\\(het\\)", "", results$value)
 results$chr = results$variable

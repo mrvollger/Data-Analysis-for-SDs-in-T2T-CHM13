@@ -102,7 +102,7 @@ insync = div.df[!overlaps(div.df, NEW)]
 
 out.tbl = insync[order(as.character(chr), start),][
   Region %in% c("SDs", "Non SD"), c("chr", "start", "non_overlap_end", "# SNVs")]
-fwrite(file = "../SNV_windows_browser/SNV.pav.bed", out.tbl,
+fwrite(file = "data/misc_files/SNV.pav.bed.gz", out.tbl,
             col.names = F, row.names = F, sep="\t", quote = F, scipen = 20)
 #
 # all data 
@@ -368,7 +368,7 @@ NONR_SD
 sd_regions = as.data.table( reduce(NONR_SD[width(NONR_SD) > 5e4] + 1e5)  )[width > 5e5 & seqnames %in% NOYM]
 colnames(sd_regions) = c("sdb_chr", "sdb_st", "sdb_en", "sdv_width", "sdb_strand")
 sd_regions[sdb_st < 0,]$sdb_st = 0
-fwrite(sd_regions[,1:3], file="../SNV_windows_browser/large_sd_regions.bed", quote = F,
+fwrite(sd_regions[,1:3], file="data/misc_files/large_sd_regions.bed.gz", quote = F,
        col.names=F, row.names=F, sep="\t", scipen = 1000)
 dim(sd_regions); #bedlength(sd_regions)/1e6
 pav_marked_by_block = merged_overlaps(pav, sd_regions) %>% 
@@ -514,7 +514,7 @@ if(F){
   # SNP calculations 
   #
   #
-  bed <- GRanges(readbed("../Assembly_analysis/Align/tmp.bam.bed", "z"))
+  bed <- GRanges(readbed("data/misc_files/tmp.bam.bed.gz", "z"))
   cov = coverage(bed )
   
   
@@ -522,10 +522,10 @@ if(F){
   
   
   
-  tmpSNVs = readbed("../Assembly_analysis/Align/chm13.draft_v1.0_plus38Y.snv.bed", "Non SD")
-  tmpSNVs = readbed("../PAV/20210213/results/GRCh38_chrOnly/bed/snv_snv.bed.gz", "Non SD")
-  tmpSNVs = readbed("../PAV/20210213/results/GRCh38_chrOnly/bed/snv_snv.bed.gz", "Non SD")
-  tmpSNVs = readbed("../PAV/20210213/results/GRCh38_chrOnly/bed/snv_snv.bed.gz", "Non SD")
+  tmpSNVs = readbed("data/misc_files/chm13.draft_v1.0_plus38Y.snv.bed.gz", "Non SD")
+  tmpSNVs = readbed("data/misc_files/snv_snv.bed.gz", "Non SD")
+  tmpSNVs = readbed("data/misc_files/snv_snv.bed.gz", "Non SD")
+  tmpSNVs = readbed("data/misc_files/snv_snv.bed.gz", "Non SD")
   
   
   tmpSNVs = tmpSNVs[! overlaps(tmpSNVs, NEW)] 

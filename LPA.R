@@ -26,7 +26,7 @@ bed$hap=gsub("__.+", "", gsub("LPA__[^_]+__", "", bed$contig))
 
 
 
-bed = merge(bed, fread("../assemblies_for_anlysis/sample_info/Master.tbl"), all.x=T, by=c("sample","hap")); bed
+bed = merge(bed, fread("data/misc_files/Master.tbl.gz"), all.x=T, by=c("sample","hap")); bed
 bed[hap=="pri"]$SuperPop=""
 bed[hap=="pri"]$hap=""
 bed$type="Human"

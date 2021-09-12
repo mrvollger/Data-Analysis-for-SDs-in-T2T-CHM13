@@ -8,7 +8,7 @@ source("plotutils.R")
 rm=RM
 duplicons=DM_BED
 sedef=SEDEF
-probes = readbed("../FES_stuff/acro_cn/probe.mappings.bed", "probes")
+probes = readbed("data/misc_files/probe.mappings.bed.gz", "probes")
 probes = probes[!probe_id %in% c("174552_ABC10_2_1_000044707300_L19::chr22:11387009-11432887", "174222_ABC10_2_1_000044616600_A12::chr14:7053457-7120716")]
 pnames  = data.table(probe_id=unique(probes$probe_id))
 pnames$color = brewer.pal(length(pnames$probe_id), "Dark2")
@@ -120,8 +120,8 @@ source("plotutils.R")
 
 
 chm13 = readbed("../Assembly_analysis/Masked/{V}.duplicons.bed", "T2T CHM13")
-hg38 = readbed("../Assembly_analysis/Masked/hg38.no_alt.duplicons.bed", "GRCh38")
-hg19 = readbed("../Assembly_analysis/Masked/hg19.no_alt.duplicons.bed", "GRCh37")
+hg38 = readbed("data/misc_files/hg38.no_alt.duplicons.bed.gz", "GRCh38")
+hg19 = readbed("data/misc_files/hg19.no_alt.duplicons.bed.gz", "GRCh37")
 
 sedef= readbed("../Assembly_analysis/SEDEF/{V}.SDs.bed", "T2T CHM13")
 low= readbed("../Assembly_analysis/SEDEF/{V}.SDs.lowid.bed", "T2T CHM13")
